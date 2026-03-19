@@ -153,7 +153,7 @@ model Student {
   school         School  @relation(fields: [school_id], references: [id])
   parent_id      String? // Link to parent User account
   parent         User?   @relation("StudentParents", fields: [parent_id], references: [id])
-  parent_phone   String // Contact phone
+  parent_phone   String? // Contact phone (optional)
   parent_name    String?
   parent_relation String? @default("Guardian")
 
