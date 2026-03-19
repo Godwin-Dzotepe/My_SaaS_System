@@ -109,6 +109,10 @@ model User {
   school_id String?
   school    School? @relation(fields: [school_id], references: [id])
 
+  // OTP fields for SMS login
+  otp           String? // Temporary OTP for SMS login
+  otpExpiresAt  DateTime? // Expiry time for OTP
+
   // Relations for specific roles
   classes        Class[] // A teacher can manage multiple classes (or one)
   announcements  Announcement[] // Created by school admin
