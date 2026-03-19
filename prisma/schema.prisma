@@ -1,0 +1,295 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- New Models ---
+
+model SchoolPaymentDetail {
+  id                  String   @id @default(uuid())
+  school_id           String   @unique // Link to the School model
+  school              School   @relation(fields: [school_id], references: [id])
+  momoNumber          String? // Mobile Money number
+  bankAccountNumber   String?
+  bankName            String?
+  paymentInstructions String? // General instructions for payment
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  MOMO // Mobile Money
+  BANK_TRANSFER
+  CARD
+  CASH
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  student_id    String // Link to the Student model
+  student       Student       @relation(fields: [student_id], references: [id])
+  parent_id     String // Link to the User model (parent)
+  parent        User          @relation("ParentPayments", fields: [parent_id], references: [id])
+  school_id     String // Link to the School model
+  school        School        @relation(fields: [school_id], references: [id])
+  amount        Float
+  status        PaymentStatus @default(PENDING)
+  paymentMethod PaymentMethod
+  referralName  String // Student's name for referral
+  transactionId String? // Optional transaction ID from payment gateway/provider
+  paidAt        DateTime? // Timestamp when payment was confirmed as paid
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+}
+
+// --- Existing Models (with minor adjustments if necessary) ---
+
+model School {
+  id          String   @id @default(uuid())
+  school_name String
+  address     String
+  phone       String
+  created_at  DateTime @default(now())
+
+  users               User[]
+  classes             Class[]
+  students            Student[]
+  subjects            Subject[]
+  announcements       Announcement[]
+  events              Event[]
+  schoolPaymentDetail SchoolPaymentDetail?
+  gradingConfigs      GradingConfig[]
+  schoolFees          SchoolFee[]
+  payments            Payment[]
+}
+
+enum Role {
+  super_admin
+  school_admin
+  finance_admin
+  secretary
+  teacher
+  parent // Already exists
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  start_date  DateTime
+  end_date    DateTime
+  school_id   String
+  school      School   @relation(fields: [school_id], references: [id])
+  created_by  String
+  creator     User     @relation("EventCreator", fields: [created_by], references: [id])
+  created_at  DateTime @default(now())
+}
+
+model User {
+  id        String  @id @default(uuid())
+  name      String
+  phone     String  @unique
+  email     String? @unique
+  password  String
+  role      Role
+  school_id String?
+  school    School? @relation(fields: [school_id], references: [id])
+
+  // Relations for specific roles
+  classes        Class[] // A teacher can manage multiple classes (or one)
+  announcements  Announcement[] // Created by school admin
+  homework       Homework[]
+  created_events Event[]        @relation("EventCreator")
+  payments       Payment[]      @relation("ParentPayments")
+
+  subjects Subject[] @relation("TeacherSubjects")
+
+  created_at DateTime @default(now())
+}
+
+model Class {
+  id         String  @id @default(uuid())
+  class_name String
+  school_id  String
+  school     School  @relation(fields: [school_id], references: [id])
+  teacher_id String?
+  teacher    User?   @relation(fields: [teacher_id], references: [id])
+
+  students Student[]
+  homework Homework[]
+}
+
+enum StudentStatus {
+  active
+  completed
+}
+
+model Student {
+  id             String  @id @default(uuid())
+  student_number String? // Unique per school, not globally
+  name           String
+  class_id       String
+  class          Class   @relation(fields: [class_id], references: [id])
+  school_id      String
+  school         School  @relation(fields: [school_id], references: [id])
+  parent_phone   String // Link to parent via phone (keeping as it was)
+  parent_name    String?
+  parent_relation String? @default("Guardian")
+
+  status     StudentStatus @default(active)
+  created_at DateTime      @default(now())
+
+  scores            Score[]
+  attendance        Attendance[]
+  payments          Payment[]
+  completed_records CompletedStudent?
+
+  @@unique([school_id, student_number])
+}
+
+model Subject {
+  id           String @id @default(uuid())
+  subject_name String
+  school_id    String
+  school       School @relation(fields: [school_id], references: [id])
+
+  scores   Score[]
+  teachers User[]  @relation("TeacherSubjects")
+}
+
+model Score {
+  id            String   @id @default(uuid())
+  student_id    String
+  student       Student  @relation(fields: [student_id], references: [id])
+  subject_id    String
+  subject       Subject  @relation(fields: [subject_id], references: [id])
+  score         Float
+  term          String
+  academic_year String
+  created_at    DateTime @default(now())
+}
+
+enum AttendanceStatus {
+  present
+  absent
+}
+
+model Attendance {
+  id         String           @id @default(uuid())
+  student_id String
+  student    Student          @relation(fields: [student_id], references: [id])
+  date       DateTime         @default(now())
+  status     AttendanceStatus
+}
+
+// The old 'Fee' model is replaced by the new 'Payment' model.
+// Keeping the enum for now, but it will be unused.
+// enum FeeStatus {
+//   paid
+//   pending
+// }
+
+// model Fee {
+//   id           String    @id @default(uuid())
+//   student_id   String
+//   student      Student   @relation(fields: [student_id], references: [id])
+//   amount       Float
+//   status       FeeStatus @default(pending)
+//   payment_date DateTime?
+//   created_at   DateTime  @default(now())
+// }
+
+model Announcement {
+  id         String   @id @default(uuid())
+  school_id  String?
+  school     School?  @relation(fields: [school_id], references: [id])
+  message    String
+  created_by String
+  creator    User     @relation(fields: [created_by], references: [id])
+  created_at DateTime @default(now())
+}
+
+model CompletedStudent {
+  id              String   @id @default(uuid())
+  student_id      String   @unique
+  student         Student  @relation(fields: [student_id], references: [id])
+  graduation_year Int
+  created_at      DateTime @default(now())
+}
+
+model Homework {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  file_url    String?
+  class_id    String
+  class       Class     @relation(fields: [class_id], references: [id])
+  teacher_id  String
+  teacher     User      @relation(fields: [teacher_id], references: [id])
+  due_date    DateTime?
+  created_at  DateTime  @default(now())
+}
+
+// Grading System Configuration
+model GradingConfig {
+  id         String   @id @default(uuid())
+  school_id  String
+  school     School   @relation(fields: [school_id], references: [id])
+  grade      String // Letter grade: A, B, C, D, F
+  min_score  Int // Minimum score for this grade
+  max_score  Int // Maximum score for this grade
+  remark     String // e.g., "Excellent", "Very Good", "Pass", "Fail"
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([school_id, grade])
+}
+
+// School Fees Configuration
+model SchoolFee {
+  id            String    @id @default(uuid())
+  school_id     String
+  school        School    @relation(fields: [school_id], references: [id])
+  fee_type      FeeType // TUITION, LUNCH, TRANSPORT, CLASS, OTHER
+  amount        Float
+  academic_year String // e.g., "2024-2025"
+  term          String? // e.g., "Term 1", "Term 2", "Term 3"
+  description   String?
+  due_date      DateTime?
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+}
+
+enum FeeType {
+  TUITION
+  LUNCH
+  TRANSPORT
+  CLASS
+  OTHER
+}
+
+// Note: StudentFee model removed - using Payment model instead for tracking student fees
+
+// Added relation for User to Payment model
+// This is a many-to-many relation from User to Payment through the 'ParentPayments' relation name.
+// It signifies that a User (acting as a parent) can have multiple payments.
+// The `Payment` model has `parentId` which establishes the link.
+// This explicit relation name makes it clear the User is acting as a parent for these payments.
+// This line ensures the Prisma client knows about this specific relationship.
+// No change needed in the User model itself, just added a comment about its existence.
+// 'ParentPayments[]' is declared in the User model.

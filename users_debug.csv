@@ -1,0 +1,5 @@
+id,name,phone,role,school_id
+p1p1p1p1-p1p1-p1p1-p1p1-p1p1p1p1p1p1,Robert Doe,0209998888,parent,
+e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1,Sarah Wilson,0551234567,teacher,d9e8f7a6-b5c4-4d3e-2f1a-0b9c8d7e6f5a
+e2e2e2e2-e2e2-e2e2-e2e2-e2e2e2e2e2e2,James Mensah,0557654321,teacher,d9e8f7a6-b5c4-4d3e-2f1a-0b9c8d7e6f5a
+a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1,Admin User,0241112222,school_admin,d9e8f7a6-b5c4-4d3e-2f1a-0b9c8d7e6f5a
