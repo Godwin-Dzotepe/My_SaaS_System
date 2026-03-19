@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
 import bcrypt from 'bcrypt';
+import { generateRandomPassword } from '@/lib/password-utils';
+import { sendSMS } from '@/lib/sms-service';
 
 const studentSchema = z.object({
   name: z.string().min(2),
@@ -12,7 +14,6 @@ const studentSchema = z.object({
   parent_phone: z.string().min(10).optional(),
   parent_name: z.string().min(2).optional(),
   parent_email: z.string().email().optional(),
-  parent_password: z.string().min(6).optional(),
   parent_relation: z.string().optional(),
 });
 
@@ -38,7 +39,6 @@ export async function POST(req: NextRequest) {
       parent_phone,
       parent_name,
       parent_email,
-      parent_password,
       parent_relation
     } = validation.data;
 
@@ -70,8 +70,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Handle Parent Account (OPTIONAL) - NEW FEATURE
+    // 5. Handle Parent Account (OPTIONAL) - AUTO PASSWORD + SMS
     let parentUser: any = null;
+    let generatedPassword: string | null = null;
 
     // Only process parent if parent_name AND parent_phone are provided
     if (parent_name && parent_phone) {
@@ -80,17 +81,11 @@ export async function POST(req: NextRequest) {
         where: { phone: parent_phone }
       });
 
-      // If parent doesn't exist, create one
+      // If parent doesn't exist, create one with auto-generated password
       if (!parentUser) {
-        // For new parent registration, require password
-        if (!parent_password) {
-          return NextResponse.json(
-            { error: 'Parent password required when creating new parent account' },
-            { status: 400 }
-          );
-        }
-
-        const hashedPassword = await bcrypt.hash(parent_password, 10);
+        // Generate random password for new parent
+        generatedPassword = generateRandomPassword();
+        const hashedPassword = await bcrypt.hash(generatedPassword, 10);
 
         try {
           parentUser = await prisma.user.create({
@@ -103,6 +98,17 @@ export async function POST(req: NextRequest) {
               school_id: school_id
             }
           });
+
+          // Send SMS with auto-generated password
+          try {
+            await sendSMS({
+              phone: parent_phone,
+              message: `Welcome! Your account has been created. Password: ${generatedPassword}. Use this to login at the parent portal.`
+            });
+          } catch (smsError) {
+            console.warn('SMS sending failed (non-blocking):', smsError);
+            // Don't fail the request if SMS fails - log and continue
+          }
         } catch (err: any) {
           // Handle unique constraint errors
           if (err.code === 'P2002') {
