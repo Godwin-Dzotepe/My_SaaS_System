@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
+import bcrypt from 'bcrypt';
 
 const studentSchema = z.object({
   name: z.string().min(2),
@@ -9,7 +10,9 @@ const studentSchema = z.object({
   class_id: z.string().uuid(),
   school_id: z.string().uuid(),
   parent_phone: z.string().min(10),
-  parent_name: z.string().optional(),
+  parent_name: z.string().min(2),
+  parent_email: z.string().email().optional(),
+  parent_password: z.string().min(6).optional(),
   parent_relation: z.string().optional(),
 });
 
@@ -24,7 +27,7 @@ export async function POST(req: NextRequest) {
     const validation = studentSchema.safeParse(body);
 
     if (!validation.success) {
-      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid input', details: validation.error.errors }, { status: 400 });
     }
 
     const {
@@ -34,6 +37,8 @@ export async function POST(req: NextRequest) {
       school_id,
       parent_phone,
       parent_name,
+      parent_email,
+      parent_password,
       parent_relation
     } = validation.data;
 
@@ -42,7 +47,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'You are not authorized for this school' }, { status: 403 });
     }
 
-    // 3. Ensure class belongs to same school ✅
+    // 3. Ensure class belongs to same school
     const classExists = await prisma.class.findFirst({
       where: {
         id: class_id,
@@ -54,7 +59,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid class for this school' }, { status: 400 });
     }
 
-    // 4. Check duplicate student number (FIXED)
+    // 4. Check duplicate student number
     if (student_number) {
       const existingStudent = await prisma.student.findFirst({
         where: { student_number }
@@ -65,12 +70,44 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Create student
+    // 5. Check if parent already exists by phone
+    let parentUser = await prisma.user.findFirst({
+      where: { phone: parent_phone }
+    });
+
+    // 6. If parent doesn't exist, create one
+    if (!parentUser) {
+      // Password is required if creating new parent
+      if (!parent_password) {
+        return NextResponse.json({ error: 'Parent password is required for new parent registration' }, { status: 400 });
+      }
+
+      const hashedPassword = await bcrypt.hash(parent_password, 10);
+
+      parentUser = await prisma.user.create({
+        data: {
+          name: parent_name,
+          phone: parent_phone,
+          email: parent_email || undefined,
+          password: hashedPassword,
+          role: 'parent',
+          school_id: school_id
+        }
+      });
+    } else {
+      // Parent already exists, verify it's a parent role
+      if (parentUser.role !== 'parent') {
+        return NextResponse.json({ error: 'This phone number is already registered with a different role' }, { status: 400 });
+      }
+    }
+
+    // 7. Create student and link to parent
     const studentData: any = {
       name,
       class_id,
       school_id,
       parent_phone,
+      parent_id: parentUser.id,
       status: 'active'
     };
 
@@ -86,13 +123,31 @@ export async function POST(req: NextRequest) {
     }
 
     const newStudent = await prisma.student.create({
-      data: studentData
+      data: studentData,
+      include: {
+        parent: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true
+          }
+        },
+        class: true
+      }
     });
 
-    return NextResponse.json(newStudent, { status: 201 });
+    return NextResponse.json(
+      {
+        message: 'Student and parent registered successfully',
+        student: newStudent,
+        parent: newStudent.parent
+      },
+      { status: 201 }
+    );
 
   } catch (error) {
-    console.error('Error creating student:', error);
-    return NextResponse.json({ error: 'Failed to register student' }, { status: 500 });
+    console.error('Error creating student and parent:', error);
+    return NextResponse.json({ error: 'Failed to register student and parent' }, { status: 500 });
   }
 }

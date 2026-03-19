@@ -115,6 +115,7 @@ model User {
   homework       Homework[]
   created_events Event[]        @relation("EventCreator")
   payments       Payment[]      @relation("ParentPayments")
+  students       Student[]      @relation("StudentParents") // Parent's children
 
   subjects Subject[] @relation("TeacherSubjects")
 
@@ -146,7 +147,9 @@ model Student {
   class          Class   @relation(fields: [class_id], references: [id])
   school_id      String
   school         School  @relation(fields: [school_id], references: [id])
-  parent_phone   String // Link to parent via phone (keeping as it was)
+  parent_id      String? // Link to parent User account
+  parent         User?   @relation("StudentParents", fields: [parent_id], references: [id])
+  parent_phone   String // Contact phone
   parent_name    String?
   parent_relation String? @default("Guardian")
 
