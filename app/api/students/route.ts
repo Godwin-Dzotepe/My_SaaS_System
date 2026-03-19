@@ -9,8 +9,8 @@ const studentSchema = z.object({
   student_number: z.string().optional(),
   class_id: z.string().uuid(),
   school_id: z.string().uuid(),
-  parent_phone: z.string().min(10),
-  parent_name: z.string().min(2),
+  parent_phone: z.string().min(10).optional(),
+  parent_name: z.string().min(2).optional(),
   parent_email: z.string().email().optional(),
   parent_password: z.string().min(6).optional(),
   parent_relation: z.string().optional(),
@@ -70,56 +70,89 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Check if parent already exists by phone
-    let parentUser = await prisma.user.findFirst({
-      where: { phone: parent_phone }
-    });
+    // 5. Handle Parent Account (OPTIONAL) - NEW FEATURE
+    let parentUser: any = null;
 
-    // 6. If parent doesn't exist, create one
-    if (!parentUser) {
-      // Password is required if creating new parent
-      if (!parent_password) {
-        return NextResponse.json({ error: 'Parent password is required for new parent registration' }, { status: 400 });
-      }
-
-      const hashedPassword = await bcrypt.hash(parent_password, 10);
-
-      parentUser = await prisma.user.create({
-        data: {
-          name: parent_name,
-          phone: parent_phone,
-          email: parent_email || undefined,
-          password: hashedPassword,
-          role: 'parent',
-          school_id: school_id
-        }
+    // Only process parent if parent_name AND parent_phone are provided
+    if (parent_name && parent_phone) {
+      // Check if parent already exists by phone
+      parentUser = await prisma.user.findFirst({
+        where: { phone: parent_phone }
       });
-    } else {
-      // Parent already exists, verify it's a parent role
-      if (parentUser.role !== 'parent') {
-        return NextResponse.json({ error: 'This phone number is already registered with a different role' }, { status: 400 });
+
+      // If parent doesn't exist, create one
+      if (!parentUser) {
+        // For new parent registration, require password
+        if (!parent_password) {
+          return NextResponse.json(
+            { error: 'Parent password required when creating new parent account' },
+            { status: 400 }
+          );
+        }
+
+        const hashedPassword = await bcrypt.hash(parent_password, 10);
+
+        try {
+          parentUser = await prisma.user.create({
+            data: {
+              name: parent_name,
+              phone: parent_phone,
+              email: parent_email || undefined,
+              password: hashedPassword,
+              role: 'parent',
+              school_id: school_id
+            }
+          });
+        } catch (err: any) {
+          // Handle unique constraint errors
+          if (err.code === 'P2002') {
+            return NextResponse.json(
+              { error: 'Parent with this phone/email already exists' },
+              { status: 400 }
+            );
+          }
+          throw err;
+        }
+      } else {
+        // Reusing existing parent - verify it's a parent role
+        if (parentUser.role !== 'parent') {
+          return NextResponse.json(
+            { error: 'This phone is registered with a different role' },
+            { status: 400 }
+          );
+        }
       }
     }
 
-    // 7. Create student and link to parent
+    // 6. Create Student and link to Parent (if parent exists)
     const studentData: any = {
       name,
       class_id,
       school_id,
-      parent_phone,
-      parent_id: parentUser.id,
       status: 'active'
     };
+
+    // Link parent if one was created/found
+    if (parentUser) {
+      studentData.parent_id = parentUser.id;
+    }
+
+    // Store parent contact info
+    if (parent_phone) {
+      studentData.parent_phone = parent_phone;
+    }
+
+    if (parent_name) {
+      studentData.parent_name = parent_name;
+    }
+
+    if (parent_relation) {
+      studentData.parent_relation = parent_relation;
+    }
 
     // Only include optional fields if they have values
     if (student_number) {
       studentData.student_number = student_number;
-    }
-    if (parent_name) {
-      studentData.parent_name = parent_name;
-    }
-    if (parent_relation) {
-      studentData.parent_relation = parent_relation;
     }
 
     const newStudent = await prisma.student.create({
@@ -137,17 +170,24 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    return NextResponse.json(
-      {
-        message: 'Student and parent registered successfully',
-        student: newStudent,
-        parent: newStudent.parent
-      },
-      { status: 201 }
-    );
+    // 7. Return Success Response
+    const response: any = {
+      message: 'Student registered successfully',
+      student: newStudent
+    };
+
+    // Include parent info in response if parent was linked
+    if (newStudent.parent) {
+      response.parent = newStudent.parent;
+      response.parentLinked = true;
+    } else {
+      response.parentLinked = false;
+    }
+
+    return NextResponse.json(response, { status: 201 });
 
   } catch (error) {
-    console.error('Error creating student and parent:', error);
-    return NextResponse.json({ error: 'Failed to register student and parent' }, { status: 500 });
+    console.error('Error creating student:', error);
+    return NextResponse.json({ error: 'Failed to register student' }, { status: 500 });
   }
 }
