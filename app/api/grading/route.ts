@@ -2,27 +2,40 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withAuth } from '@/lib/api-auth';
 import { z } from 'zod';
+import type { Session } from '@/lib/api-auth';
 
 const gradingConfigSchema = z.object({
+  school_id: z.string().uuid().optional(),
   grade: z.string().min(1, 'Grade is required.'),
   min_score: z.number().int().min(0).max(100),
   max_score: z.number().int().min(0).max(100),
   remark: z.string().min(1, 'Remark is required.'),
 });
 
+function resolveSchoolId(session: Session, requestedSchoolId?: string | null) {
+  if (session.user.role === 'super_admin') {
+    return requestedSchoolId || null;
+  }
+
+  return session.user.school_id || null;
+}
+
 // GET /api/grading - Fetch all grading configs for the admin's school
 export const GET = withAuth(
-  async ({ session }) => {
+  async ({ session, req }) => {
     try {
-      if (!session.user.school_id) {
+      const { searchParams } = new URL(req.url);
+      const schoolId = resolveSchoolId(session, searchParams.get('school_id'));
+
+      if (!schoolId) {
         return NextResponse.json(
-          { error: 'User is not associated with a school.' },
+          { error: 'School ID is required.' },
           { status: 400 }
         );
       }
 
       const gradingConfigs = await prisma.gradingConfig.findMany({
-        where: { school_id: session.user.school_id },
+        where: { school_id: schoolId },
         orderBy: { min_score: 'desc' },
       });
 
@@ -36,7 +49,7 @@ export const GET = withAuth(
     }
   },
   {
-    roles: ['school_admin'],
+    roles: ['school_admin', 'super_admin'],
   }
 );
 
@@ -44,13 +57,6 @@ export const GET = withAuth(
 export const POST = withAuth(
   async ({ req, session }) => {
     try {
-      if (!session.user.school_id) {
-        return NextResponse.json(
-          { error: 'User is not associated with a school.' },
-          { status: 400 }
-        );
-      }
-
       const body = await req.json();
       const validation = gradingConfigSchema.safeParse(body);
 
@@ -58,12 +64,20 @@ export const POST = withAuth(
         return NextResponse.json({ error: validation.error.issues }, { status: 400 });
       }
 
+      const schoolId = resolveSchoolId(session, validation.data.school_id);
+      if (!schoolId) {
+        return NextResponse.json(
+          { error: 'School ID is required.' },
+          { status: 400 }
+        );
+      }
+
       const { grade, min_score, max_score, remark } = validation.data;
 
       // Check for overlapping ranges
       const overlappingRule = await prisma.gradingConfig.findFirst({
         where: {
-            school_id: session.user.school_id,
+            school_id: schoolId,
             OR: [
                 { min_score: { lte: max_score }, max_score: { gte: min_score } }
             ]
@@ -76,7 +90,7 @@ export const POST = withAuth(
 
       const newConfig = await prisma.gradingConfig.create({
         data: {
-          school_id: session.user.school_id,
+          school_id: schoolId,
           grade,
           min_score,
           max_score,
@@ -94,23 +108,26 @@ export const POST = withAuth(
     }
   },
   {
-    roles: ['school_admin'],
+    roles: ['school_admin', 'super_admin'],
   }
 );
 
 // DELETE /api/grading - Delete all grading configs for the admin's school
 export const DELETE = withAuth(
-  async ({ session }) => {
+  async ({ session, req }) => {
     try {
-      if (!session.user.school_id) {
+      const { searchParams } = new URL(req.url);
+      const schoolId = resolveSchoolId(session, searchParams.get('school_id'));
+
+      if (!schoolId) {
         return NextResponse.json(
-          { error: 'User is not associated with a school.' },
+          { error: 'School ID is required.' },
           { status: 400 }
         );
       }
 
       await prisma.gradingConfig.deleteMany({
-        where: { school_id: session.user.school_id },
+        where: { school_id: schoolId },
       });
 
       return NextResponse.json({ message: 'Grading configurations deleted successfully.' }, { status: 200 });
@@ -123,6 +140,6 @@ export const DELETE = withAuth(
     }
   },
   {
-    roles: ['school_admin'],
+    roles: ['school_admin', 'super_admin'],
   }
 );

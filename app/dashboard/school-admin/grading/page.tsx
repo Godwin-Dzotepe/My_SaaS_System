@@ -33,6 +33,12 @@ interface GradeRange {
   remark: string;
 }
 
+interface AcademicPeriod {
+  id: string;
+  academic_year: string;
+  term: string;
+}
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -48,40 +54,49 @@ const itemVariants = {
 
 export default function GradingConfigurationPage() {
   const [gradeRanges, setGradeRanges] = useState<GradeRange[]>([]);
+  const [academicPeriods, setAcademicPeriods] = useState<AcademicPeriod[]>([]);
+  const [periodForm, setPeriodForm] = useState({ academic_year: '', term: 'Term 1' });
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingPeriod, setSavingPeriod] = useState(false);
+  const [deletingPeriodId, setDeletingPeriodId] = useState<string | null>(null);
   const [schoolId, setSchoolId] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    // Get school ID from user session
-    fetch('/api/auth/me')
-      .then(r => r.json())
-      .then(d => {
-        console.log('API Auth Me Response:', d); // Log the full response
-        const sId = d.user?.school_id || d.school_id; // Access school_id directly from the response as per app/api/auth/me/route.ts
-        console.log('Extracted School ID:', sId); // Log the extracted school_id
+    const initializePage = async () => {
+      try {
+        setLoading(true);
+        setErrorMessage('');
 
-        if (sId) {
-          setSchoolId(sId);
-          loadGradingConfig(sId);
-        } else {
-          alert('Could not retrieve school ID for your account. Please ensure you are logged in as a school administrator and your account is assigned to a school.');
-          setLoading(false); // If no schoolId, we are done loading but no config can be loaded
+        const response = await fetch('/api/auth/me');
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch user session.');
         }
-      }).catch(e => {
-        console.error('Error fetching user school ID:', e);
-        alert('Error fetching user school ID. Please check your network connection and try again.');
+
+        const sId = data.user?.school_id || '';
+        if (!sId) {
+          throw new Error('Could not retrieve school ID for your account.');
+        }
+
+        setSchoolId(sId);
+        await Promise.all([loadGradingConfig(sId), loadAcademicPeriods()]);
+      } catch (error) {
+        console.error('Error initializing grading page:', error);
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to load grading configuration.');
         setLoading(false);
-      });
+      }
+    };
+
+    initializePage();
   }, []);
 
   const loadGradingConfig = async (sId: string) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/grading?school_id=${sId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
+      setErrorMessage('');
+      const res = await fetch(`/api/grading?school_id=${sId}`);
       if (res.ok) {
         const data = await res.json();
         if (data.length > 0) {
@@ -102,11 +117,36 @@ export default function GradingConfigurationPage() {
             { id: '5', grade: 'F', minScore: 0, maxScore: 49, remark: 'Fail' },
           ]);
         }
+      } else {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || 'Failed to load grading configuration.');
       }
     } catch (error) {
       console.error('Error loading grading config:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to load grading configuration.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAcademicPeriods = async () => {
+    try {
+      const res = await fetch('/api/academic-periods');
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load academic periods.');
+      }
+
+      const periods = Array.isArray(data?.configuredPeriods) ? data.configuredPeriods : [];
+      setAcademicPeriods(periods);
+      setPeriodForm((current) => ({
+        academic_year: current.academic_year || periods[0]?.academic_year || '',
+        term: current.term || periods[0]?.term || 'Term 1',
+      }));
+    } catch (error) {
+      console.error('Error loading academic periods:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to load academic periods.');
     }
   };
 
@@ -127,11 +167,12 @@ export default function GradingConfigurationPage() {
 
   const handleSave = async () => {
     if (!schoolId) {
-      alert('School ID not available. Please refresh the page.');
+      setErrorMessage('School ID not available. Please refresh the page.');
       return;
     }
     
     setSaving(true);
+    setErrorMessage('');
     let allSucceeded = true;
     try {
       // Clear existing grading configs for this school
@@ -146,7 +187,7 @@ export default function GradingConfigurationPage() {
       if (!deleteRes.ok) {
         const errorData = await deleteRes.json();
         const errorMessage = errorData.error || 'Failed to clear existing grading configurations.';
-        alert(`Error clearing old grades: ${errorMessage}`);
+        setErrorMessage(`Error clearing old grades: ${errorMessage}`);
         allSucceeded = false;
         return;
       }
@@ -170,7 +211,7 @@ export default function GradingConfigurationPage() {
         if (!response.ok) {
           const errorData = await response.json();
           const errorMessage = errorData.error || 'Failed to save a grade range.';
-          alert(`Error saving grade ${grade.grade}: ${errorMessage}`);
+          setErrorMessage(`Error saving grade ${grade.grade}: ${errorMessage}`);
           allSucceeded = false;
           // Optionally, break the loop if one fails to prevent further issues
           break;
@@ -183,7 +224,7 @@ export default function GradingConfigurationPage() {
       }
     } catch (error) {
       console.error('Error saving grading config:', error);
-      alert('An unexpected error occurred while saving grading configurations.');
+      setErrorMessage('An unexpected error occurred while saving grading configurations.');
       allSucceeded = false;
     } finally {
       setSaving(false);
@@ -191,6 +232,63 @@ export default function GradingConfigurationPage() {
         // Reload configs to ensure UI reflects saved state, especially new IDs from DB
         loadGradingConfig(schoolId);
       }
+    }
+  };
+
+  const handleAddAcademicPeriod = async () => {
+    if (!periodForm.academic_year || !periodForm.term) {
+      setErrorMessage('Academic year and term are required.');
+      return;
+    }
+
+    try {
+      setSavingPeriod(true);
+      setErrorMessage('');
+
+      const response = await fetch('/api/academic-periods', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(periodForm),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to save academic period.');
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      await loadAcademicPeriods();
+    } catch (error) {
+      console.error('Error saving academic period:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to save academic period.');
+    } finally {
+      setSavingPeriod(false);
+    }
+  };
+
+  const handleDeleteAcademicPeriod = async (periodId: string) => {
+    try {
+      setDeletingPeriodId(periodId);
+      setErrorMessage('');
+
+      const response = await fetch(`/api/academic-periods/${periodId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to delete academic period.');
+      }
+
+      await loadAcademicPeriods();
+    } catch (error) {
+      console.error('Error deleting academic period:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to delete academic period.');
+    } finally {
+      setDeletingPeriodId(null);
     }
   };
 
@@ -211,11 +309,17 @@ export default function GradingConfigurationPage() {
               <h1 className="text-2xl font-bold text-gray-900">Grading System Configuration</h1>
               <p className="text-gray-600">Define grade boundaries and remarks for your school</p>
             </div>
-            <Button onClick={handleSave} className="gap-2 px-8">
-              <Save className="w-4 h-4" />
-              Save Grading System
+            <Button onClick={handleSave} className="gap-2 px-8" disabled={saving || loading}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {saving ? 'Saving...' : 'Save Grading System'}
             </Button>
           </motion.div>
+
+          {errorMessage ? (
+            <motion.div variants={itemVariants} className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {errorMessage}
+            </motion.div>
+          ) : null}
 
           {/* Info Banner */}
           <motion.div variants={itemVariants} className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
@@ -253,7 +357,7 @@ export default function GradingConfigurationPage() {
                     </div>
                     
                     <AnimatePresence initial={false}>
-                      {gradeRanges.map((range, index) => (
+                      {gradeRanges.map((range) => (
                         <motion.div 
                           key={range.id}
                           initial={{ opacity: 0, x: -20 }}
@@ -314,6 +418,63 @@ export default function GradingConfigurationPage() {
               <motion.div variants={itemVariants}>
                 <Card>
                   <CardHeader>
+                    <CardTitle>Academic Periods</CardTitle>
+                    <CardDescription>Add the academic years and terms the school should use across scoring, reports, and fees.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px_auto]">
+                      <Input
+                        value={periodForm.academic_year}
+                        onChange={(e) => setPeriodForm((current) => ({ ...current, academic_year: e.target.value }))}
+                        placeholder="e.g. 2026-2027"
+                      />
+                      <select
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                        value={periodForm.term}
+                        onChange={(e) => setPeriodForm((current) => ({ ...current, term: e.target.value }))}
+                      >
+                        <option value="Term 1">Term 1</option>
+                        <option value="Term 2">Term 2</option>
+                        <option value="Term 3">Term 3</option>
+                      </select>
+                      <Button onClick={handleAddAcademicPeriod} disabled={savingPeriod} className="gap-2">
+                        {savingPeriod ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        Add
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {academicPeriods.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-sm text-gray-500">
+                          No academic periods have been added yet.
+                        </div>
+                      ) : (
+                        academicPeriods.map((period) => (
+                          <div key={period.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                            <div>
+                              <p className="font-medium text-gray-900">{period.academic_year}</p>
+                              <p className="text-sm text-gray-500">{period.term}</p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteAcademicPeriod(period.id)}
+                              disabled={deletingPeriodId === period.id}
+                              className="text-red-500 hover:bg-red-50 hover:text-red-700"
+                            >
+                              {deletingPeriodId === period.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              <motion.div variants={itemVariants}>
+                <Card>
+                  <CardHeader>
                     <CardTitle>System Overview</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -322,9 +483,15 @@ export default function GradingConfigurationPage() {
                       <span className="font-bold text-gray-900">{gradeRanges.length}</span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <span className="text-gray-600 text-sm">Configured Periods</span>
+                      <span className="font-bold text-gray-900">{academicPeriods.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <span className="text-gray-600 text-sm">Pass Threshold</span>
                       <span className="font-bold text-blue-600">
-                        {Math.min(...gradeRanges.filter(r => r.grade !== 'F').map(r => r.minScore))}%
+                        {gradeRanges.filter(r => r.grade !== 'F').length > 0
+                          ? `${Math.min(...gradeRanges.filter(r => r.grade !== 'F').map(r => r.minScore))}%`
+                          : 'N/A'}
                       </span>
                     </div>
                     <div className="p-4 border border-dashed border-gray-200 rounded-lg">

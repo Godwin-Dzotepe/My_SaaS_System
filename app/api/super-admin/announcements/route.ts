@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
+import { sendSchoolBroadcastToParents } from '@/lib/school-broadcast';
 
 export async function GET() {
   try {
@@ -67,7 +68,23 @@ export async function POST(request: Request) {
       }
     });
 
-    return NextResponse.json({ announcement }, { status: 201 });
+    const schools = await prisma.school.findMany({
+      where: { isActive: true },
+      select: { id: true },
+    });
+
+    const smsResults = await Promise.all(
+      schools.map((school) => sendSchoolBroadcastToParents(school.id, message))
+    );
+
+    return NextResponse.json({
+      announcement,
+      sms: {
+        recipients: smsResults.reduce((sum, result) => sum + result.recipients, 0),
+        sent: smsResults.reduce((sum, result) => sum + result.sent, 0),
+        failed: smsResults.reduce((sum, result) => sum + result.failed, 0),
+      },
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating global announcement:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

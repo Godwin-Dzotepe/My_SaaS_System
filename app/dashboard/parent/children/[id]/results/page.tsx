@@ -1,160 +1,389 @@
 'use client';
 
 import * as React from 'react';
-import {
-  Loader2,
-  ChevronLeft,
-  School
-} from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { ChevronLeft, Download, FileText, Loader2, Sparkles } from 'lucide-react';
+import { Sidebar } from '@/components/dashboard/sidebar';
 import { PARENT_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Sidebar } from '@/components/dashboard/sidebar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
+interface ReportScore {
+  id: string;
+  classScore: number | null;
+  examScore: number | null;
+  totalScore: number | null;
+  grade: string | null;
+  remark: string | null;
+  subject: {
+    subject_name: string;
+  };
+}
 
+interface ReportPeriod {
+  academic_year: string;
+  term: string;
+}
+
+interface ReportResponse {
+  child: {
+    id: string;
+    name: string;
+    student_number: string | null;
+    class: { class_name: string } | null;
+    school: { school_name: string } | null;
+  };
+  availablePeriods: ReportPeriod[];
+  selectedPeriod: ReportPeriod;
+  summary: {
+    averageScore: number | null;
+    position: number | null;
+  };
+  scores: ReportScore[];
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function getGradeTone(grade: string | null) {
+  if (!grade) return 'bg-gray-100 text-gray-600';
+  if (grade.startsWith('A')) return 'bg-emerald-100 text-emerald-700';
+  if (grade.startsWith('B')) return 'bg-blue-100 text-blue-700';
+  if (grade.startsWith('C')) return 'bg-amber-100 text-amber-700';
+  return 'bg-rose-100 text-rose-700';
+}
 
 export default function ChildResultsPage() {
   const params = useParams();
-  const id = params.id;
-  const [child, setChild] = React.useState<any>(null);
+  const id = params.id as string;
+  const [report, setReport] = React.useState<ReportResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [userName, setUserName] = React.useState('Parent');
+  const [fetchingReport, setFetchingReport] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = React.useState('');
+  const [selectedTerm, setSelectedTerm] = React.useState('');
+  const [downloading, setDownloading] = React.useState(false);
 
-  React.useEffect(() => {
-    const fetchChildDetails = async () => {
-      const meRes = await fetch('/api/auth/me');
-      const meData = await meRes.json();
-      if (!meData.user) return;
-      const user = meData.user;
-      setUserName(user.name);
+  const fetchReport = React.useCallback(async (academicYear?: string, term?: string) => {
+    const firstLoad = academicYear === undefined && term === undefined;
+    if (firstLoad) {
+      setLoading(true);
+    } else {
+      setFetchingReport(true);
+    }
+    setError(null);
 
-      try {
-        // Reuse the children API but filter or create a specific one
-        const res = await fetch(`/api/parent/children?phone=${user.phone}`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-            const found = data.find(c => c.id === id);
-            setChild(found);
-        }
-      } catch (err) {} finally {
-        setLoading(false);
+    try {
+      const response = await fetch(`/api/parent/children/${id}/report${academicYear && term ? `?academic_year=${encodeURIComponent(academicYear)}&term=${encodeURIComponent(term)}` : ''}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch child report.');
       }
-    };
-    fetchChildDetails();
+
+      setReport(data);
+      setSelectedYear(data.selectedPeriod?.academic_year || '');
+      setSelectedTerm(data.selectedPeriod?.term || '');
+    } catch (fetchError) {
+      console.error(fetchError);
+      setError(fetchError instanceof Error ? fetchError.message : 'Failed to fetch child report.');
+    } finally {
+      setLoading(false);
+      setFetchingReport(false);
+    }
   }, [id]);
 
+  React.useEffect(() => {
+    if (!id) return;
+    fetchReport();
+  }, [fetchReport, id]);
+
+  const handleFetchScores = async () => {
+    if (!selectedYear || !selectedTerm) {
+      setError('Please select a year and term.');
+      return;
+    }
+
+    await fetchReport(selectedYear, selectedTerm);
+  };
+
+  const handleDownloadPdf = () => {
+    if (!report) return;
+
+    setDownloading(true);
+    try {
+      const rows = report.scores.map((score) => `
+        <tr>
+          <td>${escapeHtml(score.subject.subject_name)}</td>
+          <td>${score.classScore ?? 'N/A'}</td>
+          <td>${score.examScore ?? 'N/A'}</td>
+          <td>${score.totalScore ?? 'N/A'}</td>
+          <td>${escapeHtml(score.grade ?? 'N/A')}</td>
+          <td>${escapeHtml(score.remark ?? 'N/A')}</td>
+        </tr>
+      `).join('');
+
+      const printFrame = document.createElement('iframe');
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      document.body.appendChild(printFrame);
+
+      const frameDocument = printFrame.contentWindow?.document;
+      if (!frameDocument || !printFrame.contentWindow) {
+        document.body.removeChild(printFrame);
+        throw new Error('Unable to prepare the report for printing.');
+      }
+
+      frameDocument.open();
+      frameDocument.write(`
+        <html>
+          <head>
+            <title>${escapeHtml(report.child.name)} Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 32px; color: #111827; }
+              h1, h2, p { margin: 0 0 12px; }
+              .meta { margin-bottom: 24px; color: #4b5563; }
+              .summary { display: flex; gap: 24px; margin: 24px 0; }
+              .summary-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; min-width: 180px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+              th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }
+              th { background: #f3f4f6; }
+            </style>
+          </head>
+          <body>
+            <h1>Student Report Card</h1>
+            <div class="meta">
+              <p><strong>Name:</strong> ${escapeHtml(report.child.name)}</p>
+              <p><strong>School:</strong> ${escapeHtml(report.child.school?.school_name ?? 'N/A')}</p>
+              <p><strong>Class:</strong> ${escapeHtml(report.child.class?.class_name ?? 'N/A')}</p>
+              <p><strong>Student Number:</strong> ${escapeHtml(report.child.student_number ?? 'N/A')}</p>
+              <p><strong>Period:</strong> ${escapeHtml(report.selectedPeriod.term)} - ${escapeHtml(report.selectedPeriod.academic_year)}</p>
+            </div>
+            <div class="summary">
+              <div class="summary-card">
+                <p><strong>Average Score</strong></p>
+                <h2>${report.summary.averageScore ?? 'N/A'}</h2>
+              </div>
+              <div class="summary-card">
+                <p><strong>Position</strong></p>
+                <h2>${report.summary.position ?? 'N/A'}</h2>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Subject</th>
+                  <th>Class Score</th>
+                  <th>Exam Score</th>
+                  <th>Total</th>
+                  <th>Grade</th>
+                  <th>Remark</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows || '<tr><td colspan="6">No results available for this period.</td></tr>'}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `);
+      frameDocument.close();
+
+      printFrame.onload = () => {
+        printFrame.contentWindow?.focus();
+        printFrame.contentWindow?.print();
+        window.setTimeout(() => {
+          if (document.body.contains(printFrame)) {
+            document.body.removeChild(printFrame);
+          }
+        }, 1000);
+      };
+    } catch (downloadError) {
+      console.error(downloadError);
+      alert(downloadError instanceof Error ? downloadError.message : 'Failed to prepare the PDF download.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const averageScore = report?.summary.averageScore ?? 'N/A';
+  const passingSubjects = report?.scores.filter((score) => (score.totalScore ?? 0) >= 50).length ?? 0;
+  const academicYears = Array.from(new Set(report?.availablePeriods.map((period) => period.academic_year) || []));
+  const availableTerms = report?.availablePeriods.filter((period) => period.academic_year === selectedYear) || [];
+
   return (
-    <div className="flex min-h-screen bg-[#f0f1f3]">
-      <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName={userName} />
-      
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
-        <header className="flex items-center gap-4">
-          <Link href="/dashboard/parent/children">
-            <Button variant="ghost" size="icon" className="rounded-full hover:bg-white">
-                <ChevronLeft className="w-6 h-6" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-[#212529]">Academic Report</h1>
-            <p className="text-[#646464] text-sm">Detailed term performance report.</p>
-          </div>
-        </header>
+    <div className="flex min-h-screen bg-[#eef2f7]">
+      <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName="Parent" />
 
+      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
         {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
-        ) : !child ? (
-          <Card className="p-10 text-center text-gray-500">
-             Child information not found.
-          </Card>
+          <div className="flex justify-center py-24">
+            <Loader2 className="w-8 h-8 animate-spin text-[#3f7afc]" />
+          </div>
         ) : (
-          <div className="space-y-6">
-            <Card className="border-none shadow-sm bg-white overflow-hidden">
-                <CardContent className="p-6 bg-gradient-to-br from-[#3f7afc] to-[#2d6ae0] text-white">
-                    <div className="flex flex-col md:flex-row justify-between gap-6">
-                        <div className="flex items-center gap-4">
-                            <div className="w-20 h-20 rounded-2xl bg-white/20 flex items-center justify-center text-white font-bold text-3xl">
-                                {child.name.charAt(0)}
-                            </div>
-                            <div>
-                                <h2 className="text-2xl font-bold">{child.name}</h2>
-                                <p className="text-blue-100 flex items-center gap-2 mt-1">
-                                    <School className="w-4 h-4" /> {child.school?.school_name}
-                                </p>
-                                <div className="flex gap-2 mt-3">
-                                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-none">
-                                        {child.class?.class_name}
-                                    </Badge>
-                                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-none">
-                                        2024 Academic Year
-                                    </Badge>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-6">
-                            <div className="text-center">
-                                <p className="text-xs font-bold text-blue-100 uppercase tracking-wider mb-1">Average</p>
-                                <p className="text-3xl font-bold">84.5%</p>
-                            </div>
-                            <div className="text-center border-l border-white/20 pl-6">
-                                <p className="text-xs font-bold text-blue-100 uppercase tracking-wider mb-1">Position</p>
-                                <p className="text-3xl font-bold">4th</p>
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+          <div className="max-w-7xl mx-auto space-y-6">
+            <section className="rounded-[28px] bg-[linear-gradient(135deg,#0f2f66_0%,#1f61c3_50%,#8fc6ff_100%)] p-6 lg:p-8 text-white shadow-[0_20px_60px_rgba(20,83,183,0.24)]">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-2xl">
+                  <Link href="/dashboard/parent/children" className="mb-4 inline-flex items-center gap-2 text-sm text-blue-100 hover:text-white">
+                    <ChevronLeft className="w-4 h-4" />
+                    Back to children
+                  </Link>
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Individual Report
+                  </div>
+                  <h1 className="text-3xl font-bold tracking-tight">{report?.child.name || 'Student Report'}</h1>
+                  <p className="mt-3 text-sm leading-6 text-blue-100">
+                    A focused academic view for one child, built in the same report style as the parent-wide results center.
+                  </p>
+                </div>
+                <Button onClick={handleDownloadPdf} disabled={!report || downloading} className="gap-2 bg-white text-[#1f61c3] hover:bg-blue-50">
+                  {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Download PDF
+                </Button>
+              </div>
+            </section>
 
-            <Card className="border-none shadow-sm bg-white overflow-hidden">
-                <CardHeader className="border-b border-gray-100 flex flex-row items-center justify-between">
-                    <CardTitle>Subject Performance</CardTitle>
-                    <Badge variant="secondary">First Term Report</Badge>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-gray-500 font-medium">
-                                <tr>
-                                    <th className="px-6 py-4 text-left">Subject</th>
-                                    <th className="px-6 py-4 text-center">Class Score (30%)</th>
-                                    <th className="px-6 py-4 text-center">Exam Score (70%)</th>
-                                    <th className="px-6 py-4 text-center">Total (100%)</th>
-                                    <th className="px-6 py-4 text-center">Grade</th>
-                                    <th className="px-6 py-4 text-left">Teacher&apos;s Remarks</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {child.scores && child.scores.length > 0 ? (
-                                    child.scores.map((score: any) => (
-                                        <tr key={score.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-4 font-bold text-gray-900">{score.subject_name || 'Mathematics'}</td>
-                                            <td className="px-6 py-4 text-center">25.5</td>
-                                            <td className="px-6 py-4 text-center">58.0</td>
-                                            <td className="px-6 py-4 text-center font-bold">{score.score}</td>
-                                            <td className="px-6 py-4 text-center">
-                                                <Badge className={score.score >= 80 ? 'bg-green-600' : 'bg-blue-600'}>
-                                                    {score.score >= 80 ? 'A' : score.score >= 70 ? 'B' : 'C'}
-                                                </Badge>
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-500 text-xs italic">
-                                                {score.score >= 80 ? 'Exceptional performance.' : 'Good work, can improve.'}
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={6} className="px-6 py-20 text-center text-gray-400">
-                                            No detailed performance records available for this term yet.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+            {error ? (
+              <Card className="border-none bg-white shadow-sm">
+                <CardContent className="px-6 py-10 text-center text-rose-600">{error}</CardContent>
+              </Card>
+            ) : report ? (
+              <>
+                <Card className="border-none bg-white shadow-sm">
+                  <CardContent className="p-5 lg:p-6">
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr_0.8fr_auto] xl:items-end">
+                      <div>
+                        <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-gray-400">Student</label>
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                          <div className="font-medium text-gray-900">{report.child.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {report.child.school?.school_name || 'School not assigned'} - {report.child.class?.class_name || 'Class not assigned'}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-gray-400">Academic Year</label>
+                        <Select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
+                          <option value="">
+                            {academicYears.length > 0 ? 'Select academic year' : 'No academic years available'}
+                          </option>
+                          {academicYears.map((year) => (
+                            <option key={year} value={year}>{year}</option>
+                          ))}
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-gray-400">Term</label>
+                        <Select value={selectedTerm} onChange={(e) => setSelectedTerm(e.target.value)}>
+                          <option value="">
+                            {availableTerms.length > 0 ? 'Select term' : 'No terms available'}
+                          </option>
+                          {availableTerms.map((period) => (
+                              <option key={`${period.academic_year}-${period.term}`} value={period.term}>{period.term}</option>
+                          ))}
+                        </Select>
+                      </div>
+                      <Button onClick={handleFetchScores} disabled={fetchingReport || !selectedYear || !selectedTerm} className="h-10 bg-[#1f61c3] hover:bg-[#184f9d]">
+                        {fetchingReport ? 'Loading...' : 'Load Report'}
+                      </Button>
                     </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <Card className="border-none bg-white shadow-sm">
+                    <CardContent className="p-5">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400">Student Number</p>
+                      <h2 className="mt-3 text-xl font-bold text-gray-900">{report.child.student_number || 'Not assigned'}</h2>
+                      <p className="mt-2 text-sm text-gray-500">{report.child.class?.class_name || 'Class not assigned'}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-none bg-white shadow-sm">
+                    <CardContent className="p-5">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400">Average Score</p>
+                      <h3 className="mt-3 text-3xl font-bold text-[#1f61c3]">{averageScore}</h3>
+                      <p className="mt-2 text-sm text-gray-500">
+                        {selectedYear || 'Academic year pending'}, {selectedTerm || 'Term pending'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-none bg-white shadow-sm">
+                    <CardContent className="p-5">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400">Passing Subjects</p>
+                      <h3 className="mt-3 text-3xl font-bold text-emerald-600">{passingSubjects}</h3>
+                      <p className="mt-2 text-sm text-gray-500">{report.scores.length} subjects in this report</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="overflow-hidden border-none bg-white shadow-sm">
+                  <CardHeader className="border-b border-slate-100 bg-slate-50/70">
+                    <CardTitle className="flex items-center gap-2 text-xl text-gray-900">
+                      <FileText className="w-5 h-5 text-[#1f61c3]" />
+                      Subject Breakdown
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {report.scores.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Subject</TableHead>
+                              <TableHead>Class Score</TableHead>
+                              <TableHead>Exam Score</TableHead>
+                              <TableHead>Total</TableHead>
+                              <TableHead>Grade</TableHead>
+                              <TableHead>Remark</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {report.scores.map((score) => (
+                              <TableRow key={score.id}>
+                                <TableCell className="font-semibold text-gray-900">{score.subject.subject_name}</TableCell>
+                                <TableCell>{score.classScore ?? 'N/A'}</TableCell>
+                                <TableCell>{score.examScore ?? 'N/A'}</TableCell>
+                                <TableCell className="font-semibold">{score.totalScore ?? 'N/A'}</TableCell>
+                                <TableCell>
+                                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getGradeTone(score.grade)}`}>
+                                    {score.grade ?? 'N/A'}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-gray-500">{score.remark ?? 'N/A'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="px-6 py-16 text-center text-gray-500">
+                        No scores found for the selected period.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card className="border-none bg-white shadow-sm">
+                <CardContent className="px-6 py-16 text-center text-gray-500">
+                  Child information not found.
                 </CardContent>
-            </Card>
+              </Card>
+            )}
           </div>
         )}
       </div>

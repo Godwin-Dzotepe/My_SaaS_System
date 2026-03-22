@@ -3,11 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
-import bcrypt from 'bcrypt';
-import { generateRandomPassword } from '@/lib/password-utils';
-import { sendSMS } from '@/lib/sms-service';
 import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
+import { ensureParentAccount } from '@/lib/parent-account';
 
 const studentSchema = z.object({
   name: z.string().min(2),
@@ -146,50 +144,6 @@ function getSupportedStudentCreateData(data: Record<string, unknown>) {
   };
 }
 
-async function ensureParentAccount({
-  name,
-  phone,
-  schoolId,
-}: {
-  name?: string;
-  phone?: string;
-  schoolId: string;
-}) {
-  if (!name || !phone) return null;
-
-  let parentUser = await prisma.user.findFirst({
-    where: { phone },
-  });
-
-  if (!parentUser) {
-    const generatedPassword = generateRandomPassword();
-    const hashedPassword = await bcrypt.hash(generatedPassword, 10);
-
-    parentUser = await prisma.user.create({
-      data: {
-        name,
-        phone,
-        password: hashedPassword,
-        role: 'parent',
-        school_id: schoolId,
-      },
-    });
-
-    try {
-      await sendSMS({
-        phone,
-        message: `Welcome! Your parent account has been created. Login phone: ${phone}. Password: ${generatedPassword}`,
-      });
-    } catch (smsError) {
-      console.warn('SMS sending failed (non-blocking):', smsError);
-    }
-  } else if (parentUser.role !== 'parent') {
-    throw new Error(`The phone number ${phone} is already used by a different user role`);
-  }
-
-  return parentUser;
-}
-
 export async function POST(req: NextRequest) {
   try {
     // 1. Authenticate and check role
@@ -262,11 +216,14 @@ export async function POST(req: NextRequest) {
     // 4. Check duplicate student number
     if (student_number) {
       const existingStudent = await prisma.student.findFirst({
-        where: { student_number }
+        where: {
+          student_number,
+          school_id,
+        }
       });
 
       if (existingStudent) {
-        return NextResponse.json({ error: 'Student number already exists' }, { status: 400 });
+        return NextResponse.json({ error: 'Student number already exists in this school' }, { status: 400 });
       }
     }
 
@@ -275,14 +232,23 @@ export async function POST(req: NextRequest) {
       profileImagePath = await saveProfileImage(imageFile);
     }
 
+    const schoolRecord = await prisma.school.findUnique({
+      where: { id: school_id },
+      select: { school_name: true },
+    });
+
+    if (!schoolRecord) {
+      return NextResponse.json({ error: 'School not found' }, { status: 404 });
+    }
+
     // 5. Handle Parent Accounts (OPTIONAL) - AUTO PASSWORD + SMS
     let parentUser: any = null;
-    const fatherUser = await ensureParentAccount({ name: father_name, phone: father_phone, schoolId: school_id });
-    const motherUser = await ensureParentAccount({ name: mother_name, phone: mother_phone, schoolId: school_id });
-    const guardianUser = await ensureParentAccount({ name: guardian_name, phone: guardian_phone, schoolId: school_id });
+    const fatherUser = await ensureParentAccount({ name: father_name, phone: father_phone, schoolId: school_id, schoolName: schoolRecord.school_name });
+    const motherUser = await ensureParentAccount({ name: mother_name, phone: mother_phone, schoolId: school_id, schoolName: schoolRecord.school_name });
+    const guardianUser = await ensureParentAccount({ name: guardian_name, phone: guardian_phone, schoolId: school_id, schoolName: schoolRecord.school_name });
 
     if (parent_name && parent_phone) {
-      parentUser = await ensureParentAccount({ name: parent_name, phone: parent_phone, schoolId: school_id });
+      parentUser = await ensureParentAccount({ name: parent_name, phone: parent_phone, schoolId: school_id, schoolName: schoolRecord.school_name });
     }
 
     // 6. Create Student and link to Parent (if parent exists)
@@ -294,7 +260,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Link parent if one was created/found
-    const primaryParentUser = fatherUser || motherUser || guardianUser || parentUser;
+    const primaryParentUser = fatherUser?.user || motherUser?.user || guardianUser?.user || parentUser?.user;
     if (primaryParentUser) {
       studentData.parent_id = primaryParentUser.id;
     }
@@ -440,9 +406,11 @@ export async function POST(req: NextRequest) {
     response.parentAccounts = [fatherUser, motherUser, guardianUser, parentUser]
       .filter(Boolean)
       .map((account) => ({
-        id: account.id,
-        name: account.name,
-        phone: account.phone,
+        id: account.user.id,
+        name: account.user.name,
+        phone: account.user.phone,
+        temporary_password: account.temporaryPassword,
+        was_created: account.wasCreated,
       }));
 
     if (unsupportedFields.length > 0) {
@@ -460,3 +428,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to register student' }, { status: 500 });
   }
 }
+
+

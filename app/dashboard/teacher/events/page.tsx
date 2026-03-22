@@ -3,7 +3,6 @@
 import * as React from 'react';
 import {
   Loader2,
-  School,
   Clock,
   MapPin,
   Calendar
@@ -17,19 +16,18 @@ import { Card, CardContent } from '@/components/ui/card';
 export default function TeacherEventsPage() {
   const [events, setEvents] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [userName, setUserName] = React.useState('Teacher');
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(meData => {
-      if (meData.user) setUserName(meData.user.name);
-    }).catch(e => {});
-
     const fetchEvents = async () => {
       try {
         const res = await fetch('/api/events');
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error || 'Failed to fetch events.');
         if (Array.isArray(data)) setEvents(data);
-      } catch (err) {} finally {
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch events.');
+      } finally {
         setLoading(false);
       }
     };
@@ -38,7 +36,7 @@ export default function TeacherEventsPage() {
 
   return (
     <div className="flex min-h-screen bg-[#f8f9fb]">
-      <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName={userName} />
+      <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName="Teacher" />
       
       <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
         <header>
@@ -48,6 +46,10 @@ export default function TeacherEventsPage() {
 
         {loading ? (
           <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#3f7afc]" /></div>
+        ) : error ? (
+          <Card className="p-20 text-center text-red-600 bg-white border-none shadow-sm">
+            {error}
+          </Card>
         ) : events.length === 0 ? (
           <Card className="p-20 text-center text-gray-500 bg-white border-none shadow-sm">
              <Calendar className="w-12 h-12 mx-auto mb-4 opacity-10" />

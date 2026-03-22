@@ -19,31 +19,28 @@ export default function SchoolAdminAnnouncementsPage() {
   const [message, setMessage] = React.useState('');
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
-  const [userName, setUserName] = React.useState('Admin');
-  const [user, setUser] = React.useState<any>(null);
 
   const fetchAnnouncements = async () => {
     try {
       const res = await fetch('/api/announcements');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) setAnnouncements(data);
-      }
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch announcements');
+      if (Array.isArray(data)) setAnnouncements(data);
     } catch (err) {
       console.error('Error fetching announcements:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch announcements');
     } finally {
       setLoading(false);
     }
   };
 
   React.useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user) { setUserName(d.user.name); setUser(d.user); } }).catch(console.error);
     fetchAnnouncements();
   }, []);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !user) return;
+    if (!message.trim()) return;
     setError('');
     setSuccess('');
     setSending(true);
@@ -54,8 +51,6 @@ export default function SchoolAdminAnnouncementsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message,
-          school_id: user.school_id,
-          created_by: user.id,
         }),
       });
 
@@ -74,7 +69,7 @@ export default function SchoolAdminAnnouncementsPage() {
 
   return (
     <div className="flex min-h-screen bg-[#f0f1f3]">
-      <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName={userName} />
+      <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName="Admin" />
 
       <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
         <header>

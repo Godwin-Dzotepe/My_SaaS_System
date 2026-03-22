@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/api-auth";
+import { sendSchoolBroadcastToParents } from '@/lib/school-broadcast';
 
 export const POST = withAuth(async ({ req, session }) => {
   try {
@@ -26,7 +27,21 @@ export const POST = withAuth(async ({ req, session }) => {
       data: announcements,
     });
 
-    return NextResponse.json({ success: true, count: announcements.length });
+    const smsResults = await Promise.all(
+      schools.map((school) =>
+        sendSchoolBroadcastToParents(school.id, `[SUPER ADMIN SYSTEM ALERT]: ${title}\n\n${message}`)
+      )
+    );
+
+    return NextResponse.json({
+      success: true,
+      count: announcements.length,
+      sms: {
+        recipients: smsResults.reduce((sum, result) => sum + result.recipients, 0),
+        sent: smsResults.reduce((sum, result) => sum + result.sent, 0),
+        failed: smsResults.reduce((sum, result) => sum + result.failed, 0),
+      },
+    });
   } catch (error) {
     console.error("Super Admin Notification error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

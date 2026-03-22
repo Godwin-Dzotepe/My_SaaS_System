@@ -6,7 +6,6 @@ import {
   FileText,
   CheckCircle2,
   Users,
-  Check,
   UserCheck
 } from 'lucide-react';
 import Link from 'next/link';
@@ -55,7 +54,6 @@ export default function TeacherDashboard() {
   // Teacher Attendance State
   const [attendanceMarked, setAttendanceMarked] = useState(false);
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
-  const [attendanceStatus, setAttendanceStatus] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -81,9 +79,6 @@ export default function TeacherDashboard() {
         if (attResp.ok) {
           const attData = await attResp.json();
           setAttendanceMarked(attData.isMarkedToday);
-          if (attData.status) {
-            setAttendanceStatus(attData.status);
-          }
         }
       } catch (err: any) {
         setError(err.message);
@@ -101,11 +96,10 @@ export default function TeacherDashboard() {
       const res = await fetch('/api/teacher/my-attendance', {
         method: 'POST',
       });
-      const resData = await res.json();
+      const resData = await res.json().catch(() => null);
       if (!res.ok) throw new Error(resData.error || "Failed to mark attendance");
       
       setAttendanceMarked(true);
-      setAttendanceStatus('present');
     } catch (err: any) {
       alert(err.message);
     } finally {

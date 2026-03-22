@@ -29,6 +29,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { label: 'Subjects', href: '/dashboard/school-admin/subjects', icon: <BookOpen className="w-5 h-5" /> },
   { label: 'Grading', href: '/dashboard/school-admin/grading', icon: <ShieldCheck className="w-5 h-5" /> },
   { label: 'Fees Config', href: '/dashboard/school-admin/fees', icon: <CreditCard className="w-5 h-5" /> },
+  { label: 'Fees Checker', href: '/dashboard/school-admin/fees-checker', icon: <CreditCard className="w-5 h-5" /> },
   { label: 'Finance', href: '/dashboard/school-admin/finance', icon: <CreditCard className="w-5 h-5" /> },
   { label: 'Messages', href: '/dashboard/school-admin/messaging', icon: <MessageSquare className="w-5 h-5" /> },
   { label: 'Events', href: '/dashboard/school-admin/events', icon: <Calendar className="w-5 h-5" /> },

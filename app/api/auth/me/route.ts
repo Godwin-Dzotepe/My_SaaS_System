@@ -19,8 +19,10 @@ export const GET = withAuth(
         where: { id: session.user.id },
         select: { 
           name: true,
+          school_id: true,
           school: {
             select: {
+              school_name: true,
               isActive: true,
               deactivationMessage: true
             }
@@ -50,6 +52,8 @@ export const GET = withAuth(
       const userWithDetails = {
         ...session.user,
         name: dbUser.name,
+        school_id: session.user.school_id || dbUser.school_id,
+        schoolName: dbUser.school?.school_name || null,
       };
 
       return NextResponse.json({ user: userWithDetails });

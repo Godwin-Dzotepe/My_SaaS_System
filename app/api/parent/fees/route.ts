@@ -1,85 +1,127 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
+import { authorize } from '@/lib/api-auth';
+import {
+  calculateAmountLeft,
+  calculateFeeStatus,
+  ensureStudentFeeBalancesForSchool,
+  getStudentFeeBalanceModel,
+} from '@/lib/fee-balances';
 
-// Schema for query parameters
-const querySchema = z.object({
-  phone: z.string().min(10), // Parent's login phone number
-});
-
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const phone = searchParams.get('phone');
-
-  const validation = querySchema.safeParse({ phone });
-
-  if (!validation.success) {
-    return NextResponse.json({ error: 'Missing or invalid phone number' }, { status: 400 });
-  }
-
+export async function GET(req: NextRequest) {
   try {
-    const parentPhone = validation.data.phone;
+    const auth = await authorize(req, ['parent']);
+    if (auth instanceof NextResponse) return auth;
+    const { user } = auth;
 
-    // Find the parent user by phone
-    const parent = await prisma.user.findUnique({
-      where: { phone: parentPhone }
-    });
+    const parentAccessFilters = [
+      { parent_id: user.id },
+      ...(user.phone
+        ? [
+            { father_phone: user.phone },
+            { mother_phone: user.phone },
+            { guardian_phone: user.phone },
+            { parent_phone: user.phone },
+          ]
+        : []),
+    ];
 
-    if (!parent) {
-      return NextResponse.json({ error: 'Parent not found' }, { status: 404 });
-    }
-
-    // Fetch payments associated with this parent's children
-    const payments = await prisma.payment.findMany({
+    const children = await prisma.student.findMany({
       where: {
-        parent_id: parent.id
+        OR: parentAccessFilters,
+        status: 'active',
       },
       include: {
-        student: {
+        class: {
+          select: {
+            class_name: true,
+          },
+        },
+        school: {
           select: {
             id: true,
-            name: true,
-            parent_phone: true
-          }
-        }
+            school_name: true,
+          },
+        },
       },
       orderBy: {
-        created_at: 'desc'
-      }
+        name: 'asc',
+      },
     });
 
-    // Transform the data to match the FeeItem interface used in the frontend
-    const transformedFees = payments.map((payment): FeeItem => {
-      const amountDue = payment.amount - (payment.status === 'PAID' ? payment.amount : 0);
-      const isOverdue = payment.status === 'PENDING' && payment.created_at < new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days overdue
-      const status = payment.status === 'PAID' ? 'Paid' : (isOverdue ? 'Overdue' : 'Due');
+    const schoolIds = Array.from(new Set(children.map((child) => child.school_id).filter(Boolean)));
+    await Promise.all(schoolIds.map((schoolId) => ensureStudentFeeBalancesForSchool(schoolId)));
+    const studentFeeBalanceModel = getStudentFeeBalanceModel();
+
+    if (!studentFeeBalanceModel) {
+      return NextResponse.json(
+        { error: 'Fee balances are not ready yet. Please restart the dev server once and try again.' },
+        { status: 503 }
+      );
+    }
+
+    const childIds = children.map((child) => child.id);
+    const balances = childIds.length > 0
+      ? await studentFeeBalanceModel.findMany({
+          where: {
+            student_id: { in: childIds },
+          },
+          include: {
+            schoolFee: {
+              select: {
+                fee_type: true,
+                amount: true,
+                academic_year: true,
+                term: true,
+                description: true,
+              },
+            },
+          },
+          orderBy: [
+            { schoolFee: { academic_year: 'desc' } },
+            { schoolFee: { term: 'asc' } },
+          ],
+        })
+      : [];
+
+    const balancesByStudent = new Map<string, typeof balances>();
+    for (const balance of balances) {
+      const current = balancesByStudent.get(balance.student_id) ?? [];
+      current.push(balance);
+      balancesByStudent.set(balance.student_id, current);
+    }
+
+    const response = children.map((child) => {
+      const childBalances = (balancesByStudent.get(child.id) ?? []).map((balance) => ({
+        id: balance.id,
+        fee_type: balance.schoolFee.fee_type,
+        description: balance.schoolFee.description,
+        academic_year: balance.schoolFee.academic_year,
+        term: balance.schoolFee.term,
+        total_amount: balance.schoolFee.amount,
+        amount_paid: balance.amount_paid,
+        amount_left: calculateAmountLeft(balance.schoolFee.amount, balance.amount_paid),
+        status: calculateFeeStatus(balance.schoolFee.amount, balance.amount_paid),
+        updated_at: balance.updated_at,
+      }));
 
       return {
-        id: payment.id,
-        childName: payment.student.name,
-        feeType: payment.referralName || 'School Fee',
-        amountPaid: payment.status === 'PAID' ? payment.amount : 0,
-        amountDue: amountDue,
-        dueDate: payment.created_at.toISOString(),
-        status: status,
+        id: child.id,
+        name: child.name,
+        class_name: child.class?.class_name || 'N/A',
+        school_name: child.school?.school_name || 'N/A',
+        balances: childBalances,
+        totals: {
+          total_due: childBalances.reduce((sum, row) => sum + row.total_amount, 0),
+          total_paid: childBalances.reduce((sum, row) => sum + row.amount_paid, 0),
+          total_left: childBalances.reduce((sum, row) => sum + row.amount_left, 0),
+        },
       };
     });
 
-    return NextResponse.json(transformedFees);
-
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error fetching parent fees:', error);
     return NextResponse.json({ error: 'Failed to fetch fees' }, { status: 500 });
   }
-}
-
-// Interface for the fee item returned to frontend
-interface FeeItem {
-  id: string;
-  childName: string;
-  feeType: string;
-  amountPaid: number;
-  amountDue: number;
-  dueDate: string;
-  status: 'Paid' | 'Due' | 'Overdue';
 }

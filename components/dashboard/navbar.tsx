@@ -3,11 +3,42 @@
 import { Bell, Search, Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export function Navbar() {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [brandName, setBrandName] = useState('FutureLink');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadBrandName = async () => {
+      try {
+        const response = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const sessionUser = data?.user;
+
+        if (!isMounted) return;
+
+        setBrandName(
+          sessionUser?.role !== 'super_admin' && sessionUser?.schoolName
+            ? sessionUser.schoolName
+            : 'FutureLink'
+        );
+      } catch (error) {
+        console.error('Failed to load navbar brand name:', error);
+      }
+    };
+
+    loadBrandName();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -32,7 +63,7 @@ export function Navbar() {
     <header className="fixed top-0 z-20 w-full bg-white/80 backdrop-blur-md border-b border-gray-200 lg:pl-64 transition-all">
       <div className="flex items-center justify-between h-16 px-4 lg:px-8">
         <div className="flex items-center gap-4 lg:hidden">
-          <span className="text-lg font-bold text-gray-900 ml-12">EduManage</span>
+          <span className="text-lg font-bold text-gray-900 ml-12 truncate max-w-48">{brandName}</span>
         </div>
 
         <div className="hidden lg:flex items-center flex-1 max-w-md">

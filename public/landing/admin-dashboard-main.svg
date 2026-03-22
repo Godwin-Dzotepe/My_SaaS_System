@@ -1,0 +1,20 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="980" rx="28" fill="#F4F7FF"/>
+  <rect width="298" height="980" fill="#2550D7"/>
+  <rect x="338" y="36" width="524" height="54" rx="14" fill="white" stroke="#DBE4FF"/>
+  <rect x="338" y="126" width="1218" height="120" rx="22" fill="white" stroke="#DBE4FF"/>
+  <rect x="338" y="276" width="286" height="116" rx="22" fill="white" stroke="#DBE4FF"/>
+  <rect x="650" y="276" width="286" height="116" rx="22" fill="white" stroke="#DBE4FF"/>
+  <rect x="962" y="276" width="286" height="116" rx="22" fill="white" stroke="#DBE4FF"/>
+  <rect x="1274" y="276" width="282" height="116" rx="22" fill="white" stroke="#DBE4FF"/>
+  <rect x="338" y="420" width="690" height="298" rx="24" fill="white" stroke="#DBE4FF"/>
+  <rect x="1052" y="420" width="504" height="298" rx="24" fill="white" stroke="#DBE4FF"/>
+  <rect x="338" y="744" width="844" height="184" rx="24" fill="white" stroke="#DBE4FF"/>
+  <rect x="1206" y="744" width="350" height="184" rx="24" fill="white" stroke="#DBE4FF"/>
+  <path d="M430 648C504 564 588 528 670 544C738 558 772 626 842 626C898 626 934 564 984 500" stroke="#3D6CF3" stroke-width="8" stroke-linecap="round"/>
+  <rect x="1150" y="606" width="26" height="72" rx="10" fill="#3D6CF3"/>
+  <rect x="1252" y="560" width="26" height="118" rx="10" fill="#3D6CF3"/>
+  <rect x="1354" y="516" width="26" height="162" rx="10" fill="#3D6CF3"/>
+  <rect x="1456" y="594" width="26" height="84" rx="10" fill="#FFAA12"/>
+  <text x="338" y="952" fill="#7A8EBE" font-family="Arial, sans-serif" font-size="28" font-weight="700">Admin Dashboard Preview</text>
+</svg>

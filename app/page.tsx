@@ -1,242 +1,415 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { 
-  GraduationCap, 
-  CheckCircle2, 
-  Users, 
-  School, 
-  CreditCard, 
-  Bell, 
+import Image from 'next/image';
+import {
+  GraduationCap,
+  Users,
+  School,
+  CreditCard,
+  Bell,
   BarChart3,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck,
+  BookOpenCheck,
+  UserCog,
+  Smartphone,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
+const showcaseItems = [
+  {
+    title: 'Admin Dashboard',
+    image: '/landing/admin-dashboard-main.svg',
+    description: 'School admins get live counts for students, teachers, classes, revenue, attendance, and quick actions from one dashboard.',
+  },
+  {
+    title: 'Student Directory',
+    image: '/landing/student-directory.svg',
+    description: 'Search and manage enrolled students, parent contacts, status, and class placement without switching between tools.',
+  },
+  {
+    title: 'Teacher Detail',
+    image: '/landing/teacher-detail.svg',
+    description: 'Review teacher workload, subject load, attendance history, and profile records in one structured view.',
+  },
+  {
+    title: 'Parent Dashboard',
+    image: '/landing/parent-dashboard.svg',
+    description: 'Parents can track attendance, results, fee balances, notifications, and each child&apos;s latest academic progress.',
+  },
+  {
+    title: 'Analytics View',
+    image: '/landing/admin-dashboard-alt.svg',
+    description: 'Growth charts and attendance trends help schools spot issues early and make decisions with real data.',
+  },
+];
+
+const workflowSteps = [
+  {
+    title: '1. Set up your school',
+    icon: <UserCog className="w-5 h-5" />,
+    text: 'Admins create classes, add teachers and secretaries, configure fees, and upload or register students into the database.',
+  },
+  {
+    title: '2. Run daily operations',
+    icon: <BookOpenCheck className="w-5 h-5" />,
+    text: 'Teachers mark attendance, enter scores, publish homework, and update classroom activity while admins monitor everything in real time.',
+  },
+  {
+    title: '3. Keep parents informed',
+    icon: <Bell className="w-5 h-5" />,
+    text: 'Parents log in to see fees, results, attendance, announcements, and events without needing paper reports or manual follow-up.',
+  },
+];
+
 export default function LandingPage() {
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installHint, setInstallHint] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const dismissed = window.localStorage.getItem('landing-install-dismissed');
+    const installed = window.matchMedia('(display-mode: standalone)').matches;
+
+    if (!dismissed && !installed) {
+      const timer = window.setTimeout(() => {
+        const ua = window.navigator.userAgent.toLowerCase();
+        const isIos = /iphone|ipad|ipod/.test(ua);
+        setInstallHint(
+          isIos
+            ? 'On iPhone or iPad, tap Share and choose "Add to Home Screen".'
+            : 'Install this app for faster access from your home screen or desktop.'
+        );
+        setShowInstallPrompt(true);
+      }, 3000);
+
+      return () => window.clearTimeout(timer);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setShowInstallPrompt(false);
+      setDeferredPrompt(null);
+      window.localStorage.setItem('landing-install-dismissed', 'true');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const dismissInstallPrompt = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('landing-install-dismissed', 'true');
+    }
+    setShowInstallPrompt(false);
+  };
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) {
+      if (typeof window !== 'undefined') {
+        window.alert(installHint || 'Use your browser menu and choose "Add to Home Screen" or "Install App".');
+      }
+      return;
+    }
+
+    await deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+
+    if (choice.outcome === 'accepted') {
+      dismissInstallPrompt();
+    }
+
+    setDeferredPrompt(null);
+  };
+
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Navbar */}
-      <header className="px-4 lg:px-6 h-16 flex items-center border-b border-gray-100 sticky top-0 bg-white/80 backdrop-blur-md z-50">
-        <Link className="flex items-center justify-center gap-2" href="/">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <GraduationCap className="w-5 h-5 text-white" />
+    <div className="flex min-h-screen flex-col bg-[#f6f8fc]">
+      {showInstallPrompt ? (
+        <div className="fixed bottom-5 right-5 z-[70] w-[calc(100%-2rem)] max-w-md rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#2550d7]">
+              <Smartphone className="h-6 w-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-bold text-slate-950">Add FutureLink to your home screen</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    {installHint || 'Install this app so it opens faster and feels like a native web app on your device.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissInstallPrompt}
+                  className="rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Close install prompt"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Button onClick={handleInstall} className="bg-[#2550d7] hover:bg-[#1d43bb]">
+                  {deferredPrompt ? 'Install App' : 'How to Install'}
+                </Button>
+                <Button variant="outline" onClick={dismissInstallPrompt}>
+                  Maybe Later
+                </Button>
+              </div>
+            </div>
           </div>
-          <span className="text-xl font-bold text-gray-900">EduManage</span>
-        </Link>
-        <nav className="ml-auto flex gap-4 sm:gap-6 items-center">
-          <Link className="text-sm font-medium hover:text-blue-600 transition-colors hidden md:block" href="#features">
-            Features
+        </div>
+      ) : null}
+
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-7xl items-center px-4 sm:px-6 lg:px-8">
+          <Link className="flex items-center gap-3" href="/">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#2550d7] shadow-[0_12px_24px_rgba(37,80,215,0.25)]">
+              <GraduationCap className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="text-lg font-bold tracking-tight text-slate-950">FutureLink</p>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">School SaaS</p>
+            </div>
           </Link>
-          <Link className="text-sm font-medium hover:text-blue-600 transition-colors hidden md:block" href="#pricing">
-            Pricing
-          </Link>
-          <Link href="/auth/login">
-            <Button variant="ghost" size="sm">Sign In</Button>
-          </Link>
-          <Link href="/auth/register">
-            <Button size="sm">Get Started</Button>
-          </Link>
-        </nav>
+
+          <nav className="ml-auto hidden items-center gap-6 md:flex">
+            <Link className="text-sm font-medium text-slate-600 transition-colors hover:text-[#2550d7]" href="#how-it-works">
+              How It Works
+            </Link>
+            <Link className="text-sm font-medium text-slate-600 transition-colors hover:text-[#2550d7]" href="#showcase">
+              Screens
+            </Link>
+            <Link className="text-sm font-medium text-slate-600 transition-colors hover:text-[#2550d7]" href="#features">
+              Features
+            </Link>
+          </nav>
+
+          <div className="ml-4 flex items-center gap-2">
+            <Link href="/auth/login">
+              <Button variant="ghost" size="sm">Sign In</Button>
+            </Link>
+            <Link href="/auth/register">
+              <Button size="sm" className="bg-[#2550d7] hover:bg-[#1d43bb]">Get Started</Button>
+            </Link>
+          </div>
+        </div>
       </header>
 
       <main className="flex-1">
-        {/* Hero Section */}
-        <section className="relative py-20 lg:py-32 overflow-hidden bg-gradient-to-b from-blue-50 to-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="text-center max-w-3xl mx-auto">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium mb-6 animate-bounce">
-                <Badge className="bg-blue-600">New</Badge>
-                Multi-School Support is here!
+        <section className="relative overflow-hidden border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,80,215,0.18),_transparent_28%),linear-gradient(180deg,#ffffff_0%,#eef4ff_100%)] py-20 lg:py-28">
+          <div className="mx-auto grid max-w-7xl gap-14 px-4 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+            <div className="max-w-2xl">
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-4 py-1.5 text-sm font-medium text-[#2550d7] shadow-sm">
+                <ShieldCheck className="h-4 w-4" />
+                Built for schools that want one reliable system
               </div>
-              <h1 className="text-4xl lg:text-6xl font-extrabold text-gray-900 tracking-tight mb-6">
-                Manage Multiple Schools with <span className="text-blue-600">One Platform</span>
+
+              <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+                Manage students, teachers, parents, fees, and attendance in one platform.
               </h1>
-              <p className="text-lg lg:text-xl text-gray-600 mb-10 leading-relaxed">
-                The all-in-one SaaS for modern education. Manage students, parents, teachers, and finances across all your school branches seamlessly.
+              <p className="mt-6 text-lg leading-8 text-slate-600">
+                FutureLink helps schools run daily operations from a single database. Admins manage records, teachers update classroom activity, and parents follow progress in real time.
               </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href="/auth/register" className="w-full sm:w-auto">
-                  <Button size="lg" className="w-full sm:w-auto h-12 px-8 text-lg">
+
+              <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+                <Link href="/auth/register">
+                  <Button size="lg" className="h-12 bg-[#2550d7] px-8 text-base hover:bg-[#1d43bb]">
                     Start Free Trial
-                    <ChevronRight className="ml-2 w-5 h-5" />
+                    <ChevronRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
-                <Button variant="outline" size="lg" className="w-full sm:w-auto h-12 px-8 text-lg">
-                  Watch Demo
-                </Button>
+                <Link href="#showcase">
+                  <Button size="lg" variant="outline" className="h-12 px-8 text-base">
+                    View Product Screens
+                  </Button>
+                </Link>
               </div>
-              <div className="mt-12 flex items-center justify-center gap-8 text-gray-400 grayscale opacity-70">
-                <span className="font-bold text-xl">TRUSTED BY 500+ SCHOOLS</span>
+
+              <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <StatCard label="Roles Supported" value="Admins, Teachers, Parents" />
+                <StatCard label="Core Modules" value="Attendance, Results, Fees" />
+                <StatCard label="Data Source" value="Live database records" />
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-x-10 top-10 h-40 rounded-full bg-blue-200/60 blur-3xl" />
+              <div className="relative rounded-[32px] border border-slate-200 bg-white p-4 shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+                <Image
+                  src="/landing/admin-dashboard-main.svg"
+                  alt="Admin dashboard preview"
+                  width={1600}
+                  height={980}
+                  className="h-auto w-full rounded-[24px] border border-slate-200 object-cover"
+                />
               </div>
             </div>
           </div>
-          {/* Decorative elements */}
-          <div className="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 w-96 h-96 bg-blue-200 rounded-full blur-3xl opacity-20" />
-          <div className="absolute bottom-0 right-0 translate-y-1/2 translate-x-1/2 w-96 h-96 bg-purple-200 rounded-full blur-3xl opacity-20" />
         </section>
 
-        {/* Features Grid */}
-        <section id="features" className="py-24 bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl mb-4">Everything You Need</h2>
-              <p className="text-gray-600 max-w-2xl mx-auto text-lg">
-                Powerful features designed to simplify school administration and enhance the learning experience.
+        <section id="how-it-works" className="py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-12 max-w-3xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#2550d7]">How It Works</p>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                One system, three clear workflows
+              </h2>
+              <p className="mt-4 text-lg text-slate-600">
+                The platform is designed so each role works from the same school data, which keeps attendance, results, fees, and communication consistent across the whole institution.
               </p>
             </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              {workflowSteps.map((step) => (
+                <div key={step.title} className="rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm">
+                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#2550d7]">
+                    {step.icon}
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-950">{step.title}</h3>
+                  <p className="mt-3 leading-7 text-slate-600">{step.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="showcase" className="border-y border-slate-200 bg-white py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-12 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#2550d7]">Product Screens</p>
+                <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                  A quick look at the system in action
+                </h2>
+                <p className="mt-4 text-lg text-slate-600">
+                  These views show the main experience across school administration, staff management, parent access, and operational reporting.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                Screenshot slots are ready for your final exported dashboard images.
+              </div>
+            </div>
+
+            <div className="grid gap-8 lg:grid-cols-2">
+              {showcaseItems.map((item) => (
+                <article key={item.title} className="overflow-hidden rounded-[28px] border border-slate-200 bg-[#fbfcff] shadow-sm">
+                  <div className="border-b border-slate-200 bg-slate-950 px-5 py-3 text-sm font-medium text-slate-200">
+                    {item.title}
+                  </div>
+                  <div className="p-4">
+                    <Image
+                      src={item.image}
+                      alt={item.title}
+                      width={1600}
+                      height={980}
+                      className="h-auto w-full rounded-[20px] border border-slate-200 object-cover shadow-sm"
+                    />
+                    <p className="mt-4 text-sm leading-7 text-slate-600">{item.description}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="features" className="py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-12 text-center">
+              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#2550d7]">Key Features</p>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Everything needed to run day-to-day school operations</h2>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {[
-                { title: 'Multi-School Management', icon: <School className="w-6 h-6" />, desc: 'Control multiple branches from a single super-admin dashboard.' },
-                { title: 'Student & Parent Portal', icon: <Users className="w-6 h-6" />, desc: 'Dedicated portals for parents to track attendance, grades, and pay fees.' },
-                { title: 'Teacher Dashboard', icon: <GraduationCap className="w-6 h-6" />, desc: 'Streamline attendance marking and result entry for educators.' },
-                { title: 'Financial Tracking', icon: <CreditCard className="w-6 h-6" />, desc: 'Automate fee collection, track unpaid bills, and generate reports.' },
-                { title: 'Real-time Notifications', icon: <Bell className="w-6 h-6" />, desc: 'Keep everyone informed with SMS and email announcements.' },
-                { title: 'Advanced Analytics', icon: <BarChart3 className="w-6 h-6" />, desc: 'Insights into student performance and financial health.' },
-              ].map((feature, i) => (
-                <div key={i} className="p-8 rounded-2xl border border-gray-100 bg-white hover:shadow-xl hover:-translate-y-1 transition-all">
-                  <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
+                { title: 'Multi-role dashboards', icon: <School className="w-6 h-6" />, desc: 'Different experiences for super admins, school admins, teachers, parents, finance staff, and secretaries.' },
+                { title: 'Student and parent records', icon: <Users className="w-6 h-6" />, desc: 'Maintain student profiles, class placement, parent contacts, and school-wide directories from one place.' },
+                { title: 'Attendance and scoring', icon: <GraduationCap className="w-6 h-6" />, desc: 'Teachers mark attendance and save scores directly into the database so reports stay current.' },
+                { title: 'Fees and finance', icon: <CreditCard className="w-6 h-6" />, desc: 'Track pending payments, payment instructions, finance summaries, and school fee configuration.' },
+                { title: 'Announcements and events', icon: <Bell className="w-6 h-6" />, desc: 'Publish updates once and let parents or staff see the same information across their dashboards.' },
+                { title: 'Operational reporting', icon: <BarChart3 className="w-6 h-6" />, desc: 'Use summaries, growth charts, recent records, and dashboards to make decisions faster.' },
+              ].map((feature) => (
+                <div key={feature.title} className="rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm transition-transform hover:-translate-y-1">
+                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#2550d7]">
                     {feature.icon}
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">{feature.title}</h3>
-                  <p className="text-gray-600 leading-relaxed">{feature.desc}</p>
+                  <h3 className="text-xl font-bold text-slate-950">{feature.title}</h3>
+                  <p className="mt-3 leading-7 text-slate-600">{feature.desc}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Pricing Section */}
-        <section id="pricing" className="py-24 bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl mb-4">Simple, Transparent Pricing</h2>
-              <p className="text-gray-600 max-w-2xl mx-auto text-lg">Choose the plan that fits your institution&apos;s size.</p>
-            </div>
-            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-              {[
-                {
-                  name: "Starter",
-                  price: "$49",
-                  period: "/month",
-                  description: "Perfect for small schools",
-                  features: ["Up to 200 students", "2 schools", "Basic reporting", "Email support"]
-                },
-                {
-                  name: "Professional",
-                  price: "$99",
-                  period: "/month",
-                  description: "For growing institutions",
-                  features: ["Up to 1000 students", "5 schools", "Advanced analytics", "SMS notifications", "Priority support"],
-                  popular: true
-                },
-                {
-                  name: "Enterprise",
-                  price: "Custom",
-                  period: "",
-                  description: "For large school networks",
-                  features: ["Unlimited students", "Unlimited schools", "Custom integrations", "Dedicated support", "SLA guarantee"]
-                }
-              ].map((plan, idx) => (
-                <div key={idx} className={`relative p-8 rounded-2xl border ${plan.popular ? 'border-blue-600 shadow-lg ring-1 ring-blue-600' : 'border-gray-200'} bg-white`}>
-                  {plan.popular && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-blue-600 text-white text-sm font-medium rounded-full">
-                      Most Popular
-                    </div>
-                  )}
-                  <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
-                  <div className="mt-4 mb-6">
-                    <span className="text-4xl font-bold text-gray-900">{plan.price}</span>
-                    <span className="text-gray-500">{plan.period}</span>
-                  </div>
-                  <p className="text-gray-600 mb-6">{plan.description}</p>
-                  <ul className="space-y-3 mb-8">
-                    {plan.features.map((feature, fidx) => (
-                      <li key={fidx} className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button className="w-full" variant={plan.popular ? 'default' : 'outline'}>
-                    Get Started
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* CTA Section */}
-        <section className="py-20 bg-blue-600">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl font-bold text-white mb-4">Ready to Transform Your School Management?</h2>
-            <p className="text-blue-100 mb-8 text-lg">Join hundreds of schools already using EduManage</p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+        <section className="bg-[#2550d7] py-20">
+          <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
+            <h2 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+              Ready to run your school with one connected system?
+            </h2>
+            <p className="mt-4 text-lg leading-8 text-blue-100">
+              Start with student records, then grow into attendance, results, fees, staff management, and parent communication.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link href="/auth/register">
-                <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100 px-8">
-                  Start Free Trial
+                <Button size="lg" className="bg-white px-8 text-[#2550d7] hover:bg-slate-100">
+                  Create Account
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-blue-700 px-8">
-                Contact Sales
-              </Button>
+              <Link href="/auth/login">
+                <Button size="lg" variant="outline" className="border-white bg-transparent px-8 text-white hover:bg-blue-700">
+                  Sign In
+                </Button>
+              </Link>
             </div>
           </div>
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div className="col-span-1">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <GraduationCap className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-white">EduManage</span>
-              </div>
-              <p className="text-sm">Modern student management for the digital age.</p>
+      <footer className="bg-slate-950 py-10 text-slate-400">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 text-sm sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#2550d7]">
+              <GraduationCap className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-sm">
-                <li><Link href="#" className="hover:text-white transition-colors">Features</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Pricing</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Security</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-white font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-sm">
-                <li><Link href="#" className="hover:text-white transition-colors">About</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Blog</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Careers</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-white font-semibold mb-4">Support</h4>
-              <ul className="space-y-2 text-sm">
-                <li><Link href="#" className="hover:text-white transition-colors">Help Center</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Contact</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Status</Link></li>
-              </ul>
+              <p className="font-semibold text-white">FutureLink</p>
+              <p>Modern school management software</p>
             </div>
           </div>
-          <div className="border-t border-gray-800 pt-8 text-sm text-center">
-            © 2026 EduManage. All rights reserved.
-          </div>
+          <p>© 2026 FutureLink. All rights reserved.</p>
         </div>
       </footer>
     </div>
   );
 }
 
-function Badge({ children, className }: { children: React.ReactNode, className?: string }) {
+function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${className}`}>
-      {children}
-    </span>
+    <div className="rounded-[24px] border border-slate-200 bg-white/85 p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</p>
+      <p className="mt-3 text-lg font-bold text-slate-950">{value}</p>
+    </div>
   );
 }

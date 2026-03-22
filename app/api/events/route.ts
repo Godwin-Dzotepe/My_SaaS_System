@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authorize, validateSchool } from '@/lib/api-auth';
 import { z } from 'zod';
+import { sendSchoolBroadcastToParents } from '@/lib/school-broadcast';
 
 const eventSchema = z.object({
   title: z.string().min(2),
   description: z.string().optional(),
   start_date: z.string(),
   end_date: z.string(),
-  school_id: z.string().uuid(),
+  school_id: z.string().uuid().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -58,9 +59,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validation.error.format() }, { status: 400 });
     }
 
-    const { title, description, start_date, end_date, school_id } = validation.data;
+    const resolvedSchoolId = user.role === 'super_admin'
+      ? validation.data.school_id
+      : user.school_id;
+    const { title, description, start_date, end_date } = validation.data;
 
-    if (!validateSchool(user, school_id)) {
+    if (!resolvedSchoolId) {
+      return NextResponse.json({ error: 'School ID required' }, { status: 400 });
+    }
+
+    if (!validateSchool(user, resolvedSchoolId)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -70,12 +78,21 @@ export async function POST(req: NextRequest) {
         description,
         start_date: new Date(start_date),
         end_date: new Date(end_date),
-        school_id,
+        school_id: resolvedSchoolId,
         created_by: user.id,
       },
     });
 
-    return NextResponse.json(event, { status: 201 });
+    const smsMessage = [
+      `Event: ${title}`,
+      description?.trim() || null,
+      `Starts: ${new Date(start_date).toLocaleString()}`,
+      `Ends: ${new Date(end_date).toLocaleString()}`,
+    ].filter(Boolean).join('\n');
+
+    const smsResult = await sendSchoolBroadcastToParents(resolvedSchoolId, smsMessage);
+
+    return NextResponse.json({ ...event, sms: smsResult }, { status: 201 });
   } catch (error) {
     console.error('Error creating event:', error);
     return NextResponse.json({ error: 'Failed to create event' }, { status: 500 });

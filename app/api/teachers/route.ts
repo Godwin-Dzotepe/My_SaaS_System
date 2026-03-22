@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { authorize } from '@/lib/api-auth';
@@ -13,6 +13,7 @@ const teacherCreateSchema = z.object({
   phone: z.string().min(1),
   password: z.string().min(1),
   subjectIds: z.array(z.string()).optional(),
+  school_id: z.string().uuid().optional(),
   residential_address: z.string().optional(),
   digital_address: z.string().optional(),
   is_graduate: z.boolean().optional(),
@@ -48,6 +49,7 @@ async function parseTeacherRequest(req: NextRequest) {
         email: getOptionalString(formData.get('email')),
         phone: getOptionalString(formData.get('phone')),
         password: getOptionalString(formData.get('password')),
+        school_id: getOptionalString(formData.get('school_id')),
         residential_address: getOptionalString(formData.get('residential_address')),
         digital_address: getOptionalString(formData.get('digital_address')),
         is_graduate: getOptionalString(formData.get('is_graduate')) === 'true',
@@ -156,6 +158,7 @@ export async function POST(req: NextRequest) {
       phone,
       password,
       subjectIds,
+      school_id: requestedSchoolId,
       residential_address,
       digital_address,
       is_graduate,
@@ -164,6 +167,11 @@ export async function POST(req: NextRequest) {
 
     if (!name || !phone || !password) {
       return NextResponse.json({ error: 'Name, phone and password are required' }, { status: 400 });
+    }
+
+    const teacherSchoolId = user.role === 'super_admin' ? requestedSchoolId : user.school_id;
+    if (!teacherSchoolId) {
+      return NextResponse.json({ error: 'School is required for teacher creation' }, { status: 400 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -175,19 +183,30 @@ export async function POST(req: NextRequest) {
       phone,
       password: hashedPassword,
       role: 'teacher',
-      school_id: user.school_id,
+      school_id: teacherSchoolId,
     };
 
     if (profileImagePath) dataObj.image = profileImagePath;
-
     if (residential_address) dataObj.residential_address = residential_address;
     if (digital_address) dataObj.digital_address = digital_address;
     if (typeof is_graduate === 'boolean') dataObj.is_graduate = is_graduate;
     if (graduate_school) dataObj.graduate_school = graduate_school;
 
     if (subjectIds && Array.isArray(subjectIds) && subjectIds.length > 0) {
+      const subjects = await prisma.subject.findMany({
+        where: {
+          id: { in: subjectIds },
+          school_id: teacherSchoolId,
+        },
+        select: { id: true },
+      });
+
+      if (subjects.length !== subjectIds.length) {
+        return NextResponse.json({ error: 'One or more selected subjects are invalid for this school' }, { status: 400 });
+      }
+
       dataObj.subjects = {
-        connect: subjectIds.map((id: string) => ({ id }))
+        connect: subjects.map(({ id }) => ({ id }))
       };
     }
 

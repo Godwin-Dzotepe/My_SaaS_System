@@ -16,14 +16,20 @@ interface AppSession {
     school_id: string | null;
     name?: string;
 }
-interface Class {
+interface TeacherClass {
   id: string;
   class_name: string;
+  students?: Student[];
 }
 
 interface Subject {
   id: string;
   subject_name: string;
+}
+
+interface Period {
+  academic_year: string;
+  term: string;
 }
 
 interface Student {
@@ -37,20 +43,18 @@ interface ScoreInput {
   examScore: number | '';
 }
 
-const ACADEMIC_YEARS = ['2024-2025', '2025-2026', '2026-2027'];
-const TERMS = ['Term 1', 'Term 2', 'Term 3'];
-
 export default function TeacherScoringPage() {
   const [session, setSession] = useState<AppSession | null>(null);
-  const [classes, setClasses] = useState<Class[]>([]);
+  const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [periods, setPeriods] = useState<Period[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [scores, setScores] = useState<Record<string, ScoreInput>>({});
 
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
-  const [selectedYear, setSelectedYear] = useState<string>(ACADEMIC_YEARS[0]);
-  const [selectedTerm, setSelectedTerm] = useState<string>(TERMS[0]);
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [selectedTerm, setSelectedTerm] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,26 +65,39 @@ export default function TeacherScoringPage() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [sessionRes, classesRes, subjectsRes] = await Promise.all([
+        const [sessionRes, classesRes, subjectsRes, periodsRes] = await Promise.all([
           fetch('/api/auth/me'),
-          fetch('/api/teacher/classes'),
+          fetch('/api/teacher/my-class'),
           fetch('/api/teacher/subjects'),
+          fetch('/api/teacher/periods'),
         ]);
 
         if (!sessionRes.ok) {
             throw new Error('Failed to fetch user session. Please log in again.');
         }
-        if (!classesRes.ok || !subjectsRes.ok) {
-          throw new Error('Failed to fetch classes or subjects');
+        if (!classesRes.ok || !subjectsRes.ok || !periodsRes.ok) {
+          throw new Error('Failed to fetch classes, subjects, or periods');
         }
 
         const sessionData = await sessionRes.json();
         const classesData = await classesRes.json();
         const subjectsData = await subjectsRes.json();
+        const periodsData = await periodsRes.json();
 
-        setSession(sessionData);
-        setClasses(classesData);
+        setSession(sessionData.user || sessionData);
+        if (classesData?.id) {
+          setClasses([{ id: classesData.id, class_name: classesData.class_name }]);
+          setSelectedClass(classesData.id);
+        } else {
+          setClasses([]);
+        }
         setSubjects(subjectsData);
+        const nextPeriods = Array.isArray(periodsData?.periods) ? periodsData.periods : [];
+        setPeriods(nextPeriods);
+        if (nextPeriods.length > 0) {
+          setSelectedYear(nextPeriods[0].academic_year);
+          setSelectedTerm(nextPeriods[0].term);
+        }
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -128,6 +145,9 @@ export default function TeacherScoringPage() {
     }));
   };
 
+  const academicYears = Array.from(new Set(periods.map((period) => period.academic_year)));
+  const availableTerms = periods.filter((period) => period.academic_year === selectedYear);
+
   const handleSaveScores = async () => {
     if (!selectedSubject || !selectedYear || !selectedTerm) {
       setError('Please select a subject, year, and term.');
@@ -163,10 +183,20 @@ export default function TeacherScoringPage() {
 
     try {
       const results = await Promise.all(scorePromises as Promise<Response>[]);
-      const failedResponses = await Promise.all(results.filter(res => !res.ok).map(res => res.json()));
+      const failedResponses = await Promise.all(
+        results
+          .filter((res) => !res.ok)
+          .map(async (res) => {
+            const payload = await res.json().catch(() => null);
+            return {
+              status: res.status,
+              error: payload?.error || res.statusText || 'Unknown error',
+            };
+          })
+      );
 
       if (failedResponses.length > 0) {
-        const errorMsg = failedResponses.map(r => r.error).join(', ');
+        const errorMsg = failedResponses.map((r) => r.error).join(', ');
         throw new Error(`${failedResponses.length} scores failed to save. Errors: ${errorMsg}`);
       }
 
@@ -222,21 +252,33 @@ export default function TeacherScoringPage() {
             </Select>
             <Select
               value={selectedYear}
-              onChange={e => setSelectedYear(e.target.value)}
+              onChange={e => {
+                const nextYear = e.target.value;
+                setSelectedYear(nextYear);
+                const firstTerm = periods.find((period) => period.academic_year === nextYear)?.term || '';
+                setSelectedTerm(firstTerm);
+              }}
               disabled={isLoading}
             >
-              {ACADEMIC_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+              <option value="">{academicYears.length === 0 ? 'No academic years found' : 'Select academic year'}</option>
+              {academicYears.map(y => <option key={y} value={y}>{y}</option>)}
             </Select>
             <Select
               value={selectedTerm}
               onChange={e => setSelectedTerm(e.target.value)}
               disabled={isLoading}
             >
-              {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
+              <option value="">{availableTerms.length === 0 ? 'No terms found' : 'Select term'}</option>
+              {availableTerms.map((period) => <option key={`${period.academic_year}-${period.term}`} value={period.term}>{period.term}</option>)}
             </Select>
           </div>
 
           {successMessage && <p className="text-green-500">{successMessage}</p>}
+          {!successMessage && !students.length && selectedClass && !isLoading ? (
+            <p className="text-amber-600 text-sm">
+              This class currently has no active students available for scoring.
+            </p>
+          ) : null}
 
           {selectedClass && students.length > 0 && (
             <>

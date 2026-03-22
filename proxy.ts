@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { verifyToken } from '@/lib/auth';
 
 // Role-based route protection
 // Define which routes require which roles
@@ -22,13 +23,27 @@ const publicPaths = [
   '/api/auth/parent-first-login',
 ];
 
+function getDashboardRoute(role?: string) {
+  switch (role) {
+    case 'super_admin':
+      return '/dashboard/super-admin';
+    case 'school_admin':
+      return '/dashboard/school-admin';
+    case 'finance_admin':
+      return '/dashboard/finance-admin';
+    case 'teacher':
+      return '/dashboard/teacher';
+    case 'secretary':
+      return '/dashboard/secretary';
+    case 'parent':
+      return '/dashboard/parent';
+    default:
+      return '/auth/login';
+  }
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  // Allow public paths
-  if (publicPaths.some(path => pathname.startsWith(path))) {
-    return NextResponse.next();
-  }
 
   // Allow static files and Next.js internals
   if (
@@ -41,6 +56,23 @@ export function proxy(request: NextRequest) {
 
   // Get token from cookie or header
   const token = request.cookies.get('token')?.value;
+  const verifiedUser = token ? verifyToken(token) : null;
+
+  if (token && !verifiedUser) {
+    const response = pathname.startsWith('/api/')
+      ? NextResponse.json({ error: 'Invalid session' }, { status: 401 })
+      : NextResponse.redirect(new URL('/auth/login', request.url));
+    response.cookies.delete('token');
+    return response;
+  }
+
+  // Keep authenticated users out of public auth screens
+  if (publicPaths.some(path => pathname.startsWith(path))) {
+    if (verifiedUser && (pathname === '/' || pathname.startsWith('/auth/login') || pathname.startsWith('/auth/register'))) {
+      return NextResponse.redirect(new URL(getDashboardRoute(verifiedUser.role), request.url));
+    }
+    return NextResponse.next();
+  }
 
   // If no token, redirect to login for protected routes
   if (!token) {
@@ -59,14 +91,17 @@ export function proxy(request: NextRequest) {
 
   // For dashboard routes, verify role
   if (pathname.startsWith('/dashboard/')) {
-    // Get user role from a custom header set after login
-    // Or we can decode the JWT client-side and pass it
-    // For now, we'll check if user is authenticated via the token
-    
-    // Since we can't easily decode JWT in middleware without additional config,
-    // we'll do a lightweight check and let the client handle role verification
-    // This is a basic protection - real security is in the API routes
-    
+    const matchingRoute = Object.keys(roleBasedRoutes)
+      .sort((a, b) => b.length - a.length)
+      .find((route) => pathname.startsWith(route));
+
+    if (matchingRoute && verifiedUser) {
+      const allowedRoles = roleBasedRoutes[matchingRoute];
+      if (!allowedRoles.includes(verifiedUser.role)) {
+        return NextResponse.redirect(new URL(getDashboardRoute(verifiedUser.role), request.url));
+      }
+    }
+
     return NextResponse.next();
   }
 

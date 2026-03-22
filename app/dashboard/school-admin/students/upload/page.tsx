@@ -2,44 +2,66 @@
 
 import React from 'react';
 import {
-  Upload,
   FileSpreadsheet,
   CheckCircle2,
   AlertCircle,
   ArrowRight,
   ChevronLeft,
   Settings2,
-  School,
-  AlertTriangle
+  AlertTriangle,
+  Copy
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
-
-
-const mockHeaders = ['Full Name', 'Class', 'Guardian Name', 'Phone Number', 'Address', 'Gender'];
-const systemFields = ['student_name', 'class_id', 'parent_name', 'contact_number', 'residential_address', 'gender'];
-
-const mockPreviewData = [
-  { 'Full Name': 'Samuel Addo', 'Class': 'Class 5', 'Guardian Name': 'Kofi Addo', 'Phone Number': '0241234567', 'Address': 'Accra, Ghana', 'Gender': 'Male' },
-  { 'Full Name': 'Grace Mensah', 'Class': 'Class 5', 'Guardian Name': 'Ama Mensah', 'Phone Number': '0559876543', 'Address': 'Kumasi, Ghana', 'Gender': 'Female' },
-  { 'Full Name': 'Isaac Osei', 'Class': 'Class 4', 'Guardian Name': 'John Osei', 'Phone Number': '0201112223', 'Address': 'Accra, Ghana', 'Gender': 'Male' },
-];
+const importFields = [
+  { key: 'name', label: 'Student Name', required: true },
+  { key: 'student_number', label: 'Student Number' },
+  { key: 'class_name', label: 'Class Name' },
+  { key: 'parent_name', label: 'Parent Name' },
+  { key: 'parent_phone', label: 'Parent Phone' },
+  { key: 'parent_relation', label: 'Parent Relation' },
+  { key: 'date_of_birth', label: 'Date of Birth' },
+  { key: 'gender', label: 'Gender' },
+  { key: 'nationality', label: 'Nationality' },
+  { key: 'admission_date', label: 'Admission Date' },
+  { key: 'previous_school', label: 'Previous School' },
+  { key: 'residential_address', label: 'Residential Address' },
+  { key: 'digital_address', label: 'Digital Address' },
+  { key: 'father_name', label: 'Father Name' },
+  { key: 'father_phone', label: 'Father Phone' },
+  { key: 'father_profession', label: 'Father Profession' },
+  { key: 'father_status', label: 'Father Status' },
+  { key: 'father_residential_address', label: 'Father Residential Address' },
+  { key: 'father_digital_address', label: 'Father Digital Address' },
+  { key: 'mother_name', label: 'Mother Name' },
+  { key: 'mother_phone', label: 'Mother Phone' },
+  { key: 'mother_profession', label: 'Mother Profession' },
+  { key: 'mother_status', label: 'Mother Status' },
+  { key: 'mother_residential_address', label: 'Mother Residential Address' },
+  { key: 'mother_digital_address', label: 'Mother Digital Address' },
+  { key: 'guardian_name', label: 'Guardian Name' },
+  { key: 'guardian_phone', label: 'Guardian Phone' },
+  { key: 'guardian_profession', label: 'Guardian Profession' },
+  { key: 'guardian_residential_address', label: 'Guardian Residential Address' },
+  { key: 'guardian_digital_address', label: 'Guardian Digital Address' },
+  { key: 'emergency_contact_name', label: 'Emergency Contact Name' },
+  { key: 'emergency_contact_phone', label: 'Emergency Contact Phone' },
+  { key: 'medical_notes', label: 'Medical Notes' },
+] as const;
 
 export default function BulkUploadPage() {
-  const router = useRouter();
   const [step, setStep] = React.useState(1);
   const [fileName, setFileName] = React.useState<string | null>(null);
   const [fileData, setFileData] = React.useState<any[]>([]);
@@ -47,21 +69,17 @@ export default function BulkUploadPage() {
   const [columnMappings, setColumnMappings] = React.useState<Record<string, string>>({});
   const [selectedClass, setSelectedClass] = React.useState<string>('');
   const [classes, setClasses] = React.useState<any[]>([]);
-  const [importResult, setImportResult] = React.useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const [importResult, setImportResult] = React.useState<{ success: number; failed: number; errors: string[]; parentAccounts?: Array<{ name: string; phone: string; temporary_password: string | null }> } | null>(null);
   const [error, setError] = React.useState<string>('');
 
-  // Fetch available classes on mount
   React.useEffect(() => {
     const fetchClasses = async () => {
       try {
         const response = await fetch('/api/classes');
         if (response.ok) {
           const data = await response.json();
-          console.log('Fetched classes:', data);
           if (Array.isArray(data) && data.length > 0) {
             setClasses(data);
-          } else {
-            setError('No classes found. Please create a class first.');
           }
         } else {
           const errorData = await response.json();
@@ -84,8 +102,6 @@ export default function BulkUploadPage() {
 
       try {
         const reader = new FileReader();
-        
-        // Handle both CSV and XLSX files
         reader.onload = async (evt) => {
           try {
             const data = evt.target?.result;
@@ -93,7 +109,6 @@ export default function BulkUploadPage() {
             let headers: string[] = [];
 
             if (file.name.endsWith('.csv')) {
-              // Parse CSV
               if (typeof data === 'string') {
                 const lines = data.split('\n');
                 headers = lines[0].split(',').map(h => h.trim());
@@ -109,11 +124,9 @@ export default function BulkUploadPage() {
                   });
               }
             } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-              // For XLSX files, we need to use xlsx library
-              // For now, send to API to handle parsing
               const formData = new FormData();
               formData.append('file', file);
-              
+
               const response = await fetch('/api/students/parse-upload', {
                 method: 'POST',
                 body: formData,
@@ -140,20 +153,19 @@ export default function BulkUploadPage() {
             setIsUploading(false);
             setStep(2);
 
-            // Initialize column mappings with smart defaults
             const defaults: Record<string, string> = {};
-            systemFields.forEach(field => {
-              const match = headers.find(h => 
-                h.toLowerCase().includes(field.split('_')[0]) || 
-                h.toLowerCase().includes(field.split('_')[1])
-              );
-              defaults[field] = match || '';
+            importFields.forEach((field) => {
+              const normalizedKey = field.key.toLowerCase();
+              const match = headers.find((header) => {
+                const normalizedHeader = header.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                return normalizedHeader.includes(normalizedKey) || normalizedKey.includes(normalizedHeader);
+              });
+              defaults[field.key] = match || '';
             });
             setColumnMappings(defaults);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to parse file');
             setIsUploading(false);
-            console.error(err);
           }
         };
 
@@ -162,7 +174,6 @@ export default function BulkUploadPage() {
           setIsUploading(false);
         };
 
-        // Read as text for CSV, or as ArrayBuffer for XLSX
         if (file.name.endsWith('.csv')) {
           reader.readAsText(file);
         } else {
@@ -171,30 +182,28 @@ export default function BulkUploadPage() {
       } catch (err) {
         setError('Failed to read file');
         setIsUploading(false);
-        console.error(err);
       }
     }
   };
 
   const handleColumnChange = (field: string, value: string) => {
-    setColumnMappings(prev => ({
-      ...prev,
-      [field]: value,
-    }));
+    setColumnMappings(prev => ({ ...prev, [field]: value }));
   };
 
   const handleImport = async () => {
-    if (!selectedClass) {
-      setError('Please select a class before importing');
+    const requiredFields = importFields.filter(field => field.required).map(field => field.key);
+    const unmappedRequired = requiredFields.filter((field) => {
+      const mapped = columnMappings[field];
+      return !mapped || mapped === 'ignore';
+    });
+
+    if (unmappedRequired.length > 0) {
+      setError(`Please map all required fields: ${unmappedRequired.join(', ')}`);
       return;
     }
 
-    // Validate that all required fields are mapped
-    const requiredFields = systemFields.slice(0, 3); // student_name, class_id, parent_name
-    const unmappedRequired = requiredFields.filter(field => !columnMappings[field]);
-    
-    if (unmappedRequired.length > 0) {
-      setError(`Please map all required fields: ${unmappedRequired.join(', ')}`);
+    if (!selectedClass && (!columnMappings.class_name || columnMappings.class_name === 'ignore')) {
+      setError('Select one class for all rows or map a Class Name column from your file.');
       return;
     }
 
@@ -202,37 +211,42 @@ export default function BulkUploadPage() {
     setError('');
 
     try {
-      // Transform the data based on column mappings
       const mappedData = fileData
-        .filter(row => row[columnMappings['student_name']])
-        .map(row => ({
-          name: row[columnMappings['student_name']],
-          parent_name: columnMappings['parent_name'] ? row[columnMappings['parent_name']] : undefined,
-          parent_phone: columnMappings['contact_number'] ? row[columnMappings['contact_number']] : undefined,
-          student_number: columnMappings['student_number'] ? row[columnMappings['student_number']] : undefined,
-          class_id: selectedClass,
-        }));
+        .map((row) => {
+          const mappedRow: Record<string, unknown> = {};
+          importFields.forEach((field) => {
+            const column = columnMappings[field.key];
+            if (!column || column === 'ignore') return;
+            mappedRow[field.key] = row[column];
+          });
+          if (selectedClass) {
+            mappedRow.class_id = selectedClass;
+          }
+          return mappedRow;
+        })
+        .filter((row) => row.name);
 
-      // Call the API to create students
       const formData = new FormData();
-      formData.append('file', new Blob([JSON.stringify(mappedData)]), 'data.json');
-      formData.append('class_id', selectedClass);
+      formData.append('file', new Blob([JSON.stringify(mappedData)], { type: 'application/json' }), 'data.json');
+      if (selectedClass) {
+        formData.append('class_id', selectedClass);
+      }
 
       const response = await fetch('/api/students/upload', {
         method: 'POST',
         body: formData,
       });
 
+      const result = await response.json();
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Import failed');
+        throw new Error(result.error || 'Import failed');
       }
 
-      const result = await response.json();
       setImportResult({
-        success: result.count || mappedData.length,
-        failed: 0,
-        errors: []
+        success: result.count || 0,
+        failed: result.failed || 0,
+        errors: result.errors || [],
+        parentAccounts: result.parentAccounts || [],
       });
       setIsUploading(false);
       setStep(4);
@@ -248,7 +262,6 @@ export default function BulkUploadPage() {
       
       <div className="flex-1 lg:ml-64 p-4 lg:p-8">
         <div className="max-w-5xl mx-auto space-y-6">
-          {/* Breadcrumbs */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Link href="/dashboard/school-admin" className="hover:text-blue-600 transition-colors">Dashboard</Link>
             <ArrowRight className="w-3 h-3" />
@@ -260,7 +273,7 @@ export default function BulkUploadPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Bulk Student Upload</h1>
-              <p className="text-gray-600">Import hundreds of students instantly via Excel or CSV</p>
+              <p className="text-gray-600">Import the same student and parent details used in the manual student form</p>
             </div>
             {step > 1 && step < 4 && (
               <Button variant="ghost" onClick={() => setStep(step - 1)} className="gap-2">
@@ -269,7 +282,6 @@ export default function BulkUploadPage() {
             )}
           </div>
 
-          {/* Stepper */}
           <div className="flex items-center justify-between px-4 py-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
             {[
               { s: 1, label: 'Upload File' },
@@ -279,7 +291,7 @@ export default function BulkUploadPage() {
             ].map((item) => (
               <div key={item.s} className="flex items-center gap-2 min-w-fit px-4">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                  step === item.s ? 'bg-blue-600 text-white' : 
+                  step === item.s ? 'bg-blue-600 text-white' :
                   step > item.s ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'
                 }`}>
                   {step > item.s ? <CheckCircle2 className="w-5 h-5" /> : item.s}
@@ -294,12 +306,7 @@ export default function BulkUploadPage() {
 
           <AnimatePresence mode="wait">
             {step === 1 && (
-              <motion.div
-                key="step1"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
+              <motion.div key="step1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                 <Card className="border-dashed border-2 bg-white/50">
                   <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
                     <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
@@ -308,17 +315,11 @@ export default function BulkUploadPage() {
                     <div className="text-center">
                       <h3 className="text-lg font-semibold text-gray-900">Upload your student list</h3>
                       <p className="text-sm text-gray-500 max-w-xs mx-auto">
-                        Drag and drop your .xlsx or .csv file here, or click to browse.
+                        Upload CSV or Excel with student, parent, guardian, address, and emergency fields.
                       </p>
                     </div>
                     <div className="flex flex-col items-center gap-3">
-                      <Input 
-                        type="file" 
-                        className="hidden" 
-                        id="file-upload" 
-                        accept=".csv,.xlsx"
-                        onChange={handleFileChange}
-                      />
+                      <Input type="file" className="hidden" id="file-upload" accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
                       <label htmlFor="file-upload">
                         <Button className="cursor-pointer pointer-events-none" disabled={isUploading}>
                           {isUploading ? 'Processing...' : 'Choose File'}
@@ -334,29 +335,20 @@ export default function BulkUploadPage() {
                     <div>
                       <p className="text-sm font-medium text-amber-900">Important Note</p>
                       <p className="text-xs text-amber-700 mt-1">
-                        Ensure your file has clear headers for student names, classes, and parent contact information.
+                        Parents added through this upload will get generated login passwords and those passwords will appear in the parent admin panel.
                       </p>
                     </div>
                   </div>
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-blue-900">Need a template?</p>
-                      <p className="text-xs text-blue-700">Download our sample Excel file</p>
-                    </div>
-                    <Button variant="outline" size="sm" className="bg-white">Download</Button>
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                    <p className="text-sm font-medium text-blue-900">Class handling</p>
+                    <p className="text-xs text-blue-700 mt-1">You can either choose one class for all rows or map a Class Name column in the next step.</p>
                   </div>
                 </div>
               </motion.div>
             )}
 
             {step === 2 && (
-              <motion.div
-                key="step2"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
-              >
+              <motion.div key="step2" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
                 {error && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 flex gap-2">
                     <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -371,66 +363,43 @@ export default function BulkUploadPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Class Selection */}
-                    {classes.length === 0 ? (
-                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex gap-3">
-                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-amber-900">No classes available</p>
-                          <p className="text-sm text-amber-700 mt-1">
-                            Please create a class first before uploading students.
-                          </p>
-                          <Link href="/dashboard/school-admin/classes/new">
-                            <Button size="sm" className="mt-3 bg-amber-600 hover:bg-amber-700">
-                              Create a Class
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Select Class for Import *
-                        </label>
-                        <select
-                          value={selectedClass}
-                          onChange={(e) => setSelectedClass(e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        >
-                          <option value="">Choose a class...</option>
-                          {classes.map(cls => (
-                            <option key={cls.id} value={cls.id}>
-                              {cls.class_name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* Column Mapping */}
                     <div>
-                      <h3 className="text-sm font-medium text-gray-700 mb-4">Map Excel Columns to System Fields</h3>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4 text-xs font-bold text-gray-500 uppercase tracking-wider px-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Optional: Select One Class for All Imported Students
+                      </label>
+                      <select
+                        value={selectedClass}
+                        onChange={(e) => setSelectedClass(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">Use class from mapped file column</option>
+                        {classes.map(cls => (
+                          <option key={cls.id} value={cls.id}>{cls.class_name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-700 mb-4">Map Excel Columns to Student Fields</h3>
+                      <div className="space-y-4 max-h-[28rem] overflow-y-auto pr-2">
+                        <div className="grid grid-cols-2 gap-4 text-xs font-bold text-gray-500 uppercase tracking-wider px-2 sticky top-0 bg-white py-2">
                           <div>System Field</div>
                           <div>Excel Column</div>
                         </div>
-                        {systemFields.map((field, idx) => (
-                          <div key={field} className="grid grid-cols-2 gap-4 items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
-                            <div className="font-medium text-gray-900 capitalize">
-                              {field.replace('_', ' ')}
-                              {idx < 2 && <span className="text-red-500 ml-1">*</span>}
+                        {importFields.map((field) => (
+                          <div key={field.key} className="grid grid-cols-2 gap-4 items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                            <div className="font-medium text-gray-900">
+                              {field.label}
+                              {field.required ? <span className="text-red-500 ml-1">*</span> : null}
                             </div>
-                            <select 
-                              value={columnMappings[field] || ''}
-                              onChange={(e) => handleColumnChange(field, e.target.value)}
+                            <select
+                              value={columnMappings[field.key] || ''}
+                              onChange={(e) => handleColumnChange(field.key, e.target.value)}
                               className="bg-white border border-gray-200 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                               <option value="">Select Column...</option>
-                              {Object.keys(fileData[0] || {}).map(h => (
-                                <option key={h} value={h}>
-                                  {h}
-                                </option>
+                              {Object.keys(fileData[0] || {}).map((header) => (
+                                <option key={header} value={header}>{header}</option>
                               ))}
                               <option value="ignore">Skip this field</option>
                             </select>
@@ -440,14 +409,8 @@ export default function BulkUploadPage() {
                     </div>
 
                     <div className="mt-8 flex justify-end gap-3">
-                      <Button variant="outline" onClick={() => setStep(1)}>
-                        Back
-                      </Button>
-                      <Button
-                        onClick={() => setStep(3)}
-                        disabled={!selectedClass || classes.length === 0}
-                        className="gap-2"
-                      >
+                      <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+                      <Button onClick={() => setStep(3)} className="gap-2">
                         Next: Preview Data <ArrowRight className="w-4 h-4" />
                       </Button>
                     </div>
@@ -457,13 +420,7 @@ export default function BulkUploadPage() {
             )}
 
             {step === 3 && (
-              <motion.div
-                key="step3"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
-              >
+              <motion.div key="step3" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
                 {error && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 flex gap-2">
                     <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -474,7 +431,7 @@ export default function BulkUploadPage() {
                   <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                       <CardTitle>Data Preview</CardTitle>
-                      <p className="text-sm text-gray-500 mt-1">Found {fileData.length} students in &quot;{fileName}&quot;</p>
+                      <p className="text-sm text-gray-500 mt-1">Found {fileData.length} rows in &quot;{fileName}&quot;</p>
                     </div>
                     <Badge variant="success">Ready to import</Badge>
                   </CardHeader>
@@ -500,13 +457,9 @@ export default function BulkUploadPage() {
                       </table>
                     </div>
                     <div className="mt-8 flex items-center justify-between">
-                      <p className="text-sm text-gray-500">
-                        Showing first {Math.min(5, fileData.length)} of {fileData.length} records.
-                      </p>
+                      <p className="text-sm text-gray-500">Showing first {Math.min(5, fileData.length)} of {fileData.length} records.</p>
                       <div className="flex gap-3">
-                        <Button variant="outline" onClick={() => setStep(2)} disabled={isUploading}>
-                          Back
-                        </Button>
+                        <Button variant="outline" onClick={() => setStep(2)} disabled={isUploading}>Back</Button>
                         <Button onClick={handleImport} disabled={isUploading} className="gap-2 bg-green-600 hover:bg-green-700">
                           {isUploading ? 'Importing...' : 'Finalize & Import All Students'}
                         </Button>
@@ -518,30 +471,53 @@ export default function BulkUploadPage() {
             )}
 
             {step === 4 && (
-              <motion.div
-                key="step4"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-center justify-center py-20 space-y-6"
-              >
+              <motion.div key="step4" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-20 space-y-6">
                 {importResult?.success ? (
                   <>
                     <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center text-green-600">
                       <CheckCircle2 className="w-12 h-12" />
                     </div>
                     <div className="text-center space-y-2">
-                      <h2 className="text-3xl font-bold text-gray-900">Import Successful!</h2>
+                      <h2 className="text-3xl font-bold text-gray-900">Import Complete</h2>
                       <p className="text-gray-600 max-w-md mx-auto">
-                        {importResult.success} student{importResult.success !== 1 ? 's have' : ' has'} been successfully added to the database and assigned to the selected class.
+                        {importResult.success} student(s) imported successfully. {importResult.failed ? `${importResult.failed} row(s) failed validation.` : 'All rows were processed successfully.'}
                       </p>
                     </div>
+                    {importResult.parentAccounts && importResult.parentAccounts.length > 0 ? (
+                      <Card className="w-full max-w-3xl">
+                        <CardHeader>
+                          <CardTitle>Generated Parent Login Details</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {importResult.parentAccounts.slice(0, 10).map((parent) => (
+                            <div key={parent.phone} className="flex items-center justify-between border border-gray-100 rounded-lg p-3">
+                              <div>
+                                <p className="font-medium text-gray-900">{parent.name}</p>
+                                <p className="text-sm text-gray-500">{parent.phone}</p>
+                                <p className="font-mono text-sm text-gray-800">{parent.temporary_password || 'Existing password kept'}</p>
+                              </div>
+                              <Button variant="outline" size="sm" className="gap-2" onClick={() => navigator.clipboard.writeText(`${parent.name}\nPhone: ${parent.phone}\nPassword: ${parent.temporary_password || 'Existing password kept'}`)}>
+                                <Copy className="w-4 h-4" /> Copy
+                              </Button>
+                            </div>
+                          ))}
+                          {importResult.parentAccounts.length > 10 ? <p className="text-xs text-gray-500">Only the first 10 parent accounts are shown here. Use the Parents page to view the full list.</p> : null}
+                        </CardContent>
+                      </Card>
+                    ) : null}
+                    {importResult.errors.length > 0 ? (
+                      <Card className="w-full max-w-3xl border-amber-200 bg-amber-50">
+                        <CardHeader>
+                          <CardTitle>Rows That Need Attention</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm text-amber-900">
+                          {importResult.errors.slice(0, 10).map((item) => <p key={item}>{item}</p>)}
+                        </CardContent>
+                      </Card>
+                    ) : null}
                     <div className="flex gap-4">
-                      <Link href="/dashboard/school-admin/students">
-                        <Button variant="outline">View Student List</Button>
-                      </Link>
-                      <Link href="/dashboard/school-admin">
-                        <Button>Return to Dashboard</Button>
-                      </Link>
+                      <Link href="/dashboard/school-admin/parents"><Button variant="outline">Open Parents Panel</Button></Link>
+                      <Link href="/dashboard/school-admin/students"><Button>View Students</Button></Link>
                     </div>
                   </>
                 ) : (
@@ -551,13 +527,9 @@ export default function BulkUploadPage() {
                     </div>
                     <div className="text-center space-y-2">
                       <h2 className="text-3xl font-bold text-gray-900">Import Failed</h2>
-                      <p className="text-gray-600 max-w-md mx-auto">
-                        {error || 'Something went wrong during the import. Please try again.'}
-                      </p>
+                      <p className="text-gray-600 max-w-md mx-auto">{error || 'Something went wrong during the import. Please try again.'}</p>
                     </div>
-                    <Button onClick={() => { setStep(1); setError(''); setFileData([]); }} className="gap-2">
-                      Start Over
-                    </Button>
+                    <Button onClick={() => { setStep(1); setError(''); setFileData([]); }} className="gap-2">Start Over</Button>
                   </>
                 )}
               </motion.div>

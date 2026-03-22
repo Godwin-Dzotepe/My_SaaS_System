@@ -4,8 +4,7 @@ import * as React from 'react';
 import {
   Loader2,
   TrendingUp,
-  Clock,
-  Calendar
+  Clock
 } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,35 +13,61 @@ import { Sidebar } from '@/components/dashboard/sidebar';
 import { PARENT_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import Link from 'next/link';
 
+interface AttendanceChild {
+  id: string;
+  name: string;
+  class_name: string;
+  attendancePercentage: string;
+  totalDays: number;
+  presentDays: number;
+  absentDays: number;
+  currentStatus: string;
+  latestAttendanceDate: string | null;
+}
 
+interface RecentAbsence {
+  childId: string;
+  childName: string;
+  date: string;
+}
+
+interface AttendanceSummaryResponse {
+  children: AttendanceChild[];
+  recentAbsences: RecentAbsence[];
+}
 
 export default function ParentAttendancePage() {
-  const [children, setChildren] = React.useState<any[]>([]);
+  const [attendanceSummary, setAttendanceSummary] = React.useState<AttendanceSummaryResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [userName, setUserName] = React.useState('Parent');
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const fetchChildren = async () => {
-      const meRes = await fetch('/api/auth/me');
-      const meData = await meRes.json();
-      if (!meData.user) return;
-      const user = meData.user;
-      setUserName(user.name);
+    const fetchAttendanceSummary = async () => {
+      setLoading(true);
+      setError(null);
 
       try {
-        const res = await fetch(`/api/parent/children?phone=${user.phone}`);
-        const data = await res.json();
-        if (Array.isArray(data)) setChildren(data);
-      } catch (err) {} finally {
+        const attendanceRes = await fetch('/api/parent/attendance');
+        const attendanceData = await attendanceRes.json();
+        if (!attendanceRes.ok) {
+          throw new Error(attendanceData.error || 'Failed to fetch attendance summary.');
+        }
+
+        setAttendanceSummary(attendanceData);
+      } catch (fetchError) {
+        console.error(fetchError);
+        setError(fetchError instanceof Error ? fetchError.message : 'Failed to fetch attendance summary.');
+      } finally {
         setLoading(false);
       }
     };
-    fetchChildren();
+
+    fetchAttendanceSummary();
   }, []);
 
   return (
     <div className="flex min-h-screen bg-[#f0f1f3]">
-      <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName={userName} />
+      <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName="Parent" />
       
       <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
         <header>
@@ -52,13 +77,15 @@ export default function ParentAttendancePage() {
 
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
-        ) : children.length === 0 ? (
+        ) : error ? (
+          <Card className="p-10 text-center text-red-600">{error}</Card>
+        ) : !attendanceSummary || attendanceSummary.children.length === 0 ? (
           <Card className="p-10 text-center text-gray-500">
-             No attendance data found.
+            No attendance data found.
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-6">
-            {children.map((child) => (
+            {attendanceSummary.children.map((child) => (
               <Card key={child.id} className="border-none shadow-sm bg-white overflow-hidden">
                 <CardContent className="p-6">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -68,33 +95,43 @@ export default function ParentAttendancePage() {
                       </div>
                       <div>
                         <h3 className="font-bold text-lg">{child.name}</h3>
-                        <p className="text-sm text-gray-500">{child.class?.class_name}</p>
+                        <p className="text-sm text-gray-500">{child.class_name}</p>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 flex-1 md:flex-none">
                       <div className="text-center p-3 bg-green-50 rounded-xl">
                         <p className="text-[10px] font-bold text-green-700 uppercase">Attendance</p>
-                        <p className="text-xl font-bold text-green-700">95%</p>
+                        <p className="text-xl font-bold text-green-700">{child.attendancePercentage}</p>
                       </div>
                       <div className="text-center p-3 bg-blue-50 rounded-xl">
                         <p className="text-[10px] font-bold text-blue-700 uppercase">Status</p>
-                        <Badge variant="success" className="mt-1">Present Today</Badge>
+                        <Badge className="mt-1 bg-blue-100 text-blue-700 hover:bg-blue-100 border-none">
+                          {child.currentStatus}
+                        </Badge>
                       </div>
                       <div className="hidden sm:block">
                         <Link href={`/dashboard/parent/children/${child.id}/attendance`}>
-                            <Button variant="outline" className="h-full w-full gap-2 border-blue-600 text-blue-600">
-                                View Details <TrendingUp className="w-4 h-4" />
-                            </Button>
+                          <Button variant="outline" className="h-full w-full gap-2 border-blue-600 text-blue-600">
+                            View Details <TrendingUp className="w-4 h-4" />
+                          </Button>
                         </Link>
                       </div>
                     </div>
                   </div>
+                  <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-500">
+                    <span>Total Days: {child.totalDays}</span>
+                    <span>Present: {child.presentDays}</span>
+                    <span>Absent: {child.absentDays}</span>
+                    {child.latestAttendanceDate ? (
+                      <span>Last Marked: {new Date(child.latestAttendanceDate).toLocaleDateString()}</span>
+                    ) : null}
+                  </div>
                   <div className="mt-4 sm:hidden">
                     <Link href={`/dashboard/parent/children/${child.id}/attendance`}>
-                        <Button variant="outline" className="w-full gap-2 border-blue-600 text-blue-600">
-                            View Details <TrendingUp className="w-4 h-4" />
-                        </Button>
+                      <Button variant="outline" className="w-full gap-2 border-blue-600 text-blue-600">
+                        View Details <TrendingUp className="w-4 h-4" />
+                      </Button>
                     </Link>
                   </div>
                 </CardContent>
@@ -104,27 +141,38 @@ export default function ParentAttendancePage() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-            <Card className="bg-white border-none shadow-sm">
-                <CardHeader>
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-[#ffa001]" />
-                        Recent Absences
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-center py-6 text-gray-400 text-sm italic">No recent absences recorded.</p>
-                </CardContent>
-            </Card>
-            <Card className="bg-[#3f7afc] text-white border-none shadow-sm">
-                <CardHeader>
-                    <CardTitle className="text-white text-sm font-bold">Attendance Policy</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-xs text-blue-50 leading-relaxed">
-                        Students are required to maintain at least 85% attendance for each term. Please contact the school office if your child will be absent.
-                    </p>
-                </CardContent>
-            </Card>
+          <Card className="bg-white border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#ffa001]" />
+                Recent Absences
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {attendanceSummary?.recentAbsences.length ? (
+                <div className="space-y-3">
+                  {attendanceSummary.recentAbsences.map((absence) => (
+                    <div key={`${absence.childId}-${absence.date}`} className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-gray-800">{absence.childName}</span>
+                      <span className="text-gray-500">{new Date(absence.date).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center py-6 text-gray-400 text-sm italic">No recent absences recorded.</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="bg-[#3f7afc] text-white border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-white text-sm font-bold">Attendance Policy</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-blue-50 leading-relaxed">
+                Students are required to maintain at least 85% attendance for each term. Please contact the school office if your child will be absent.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

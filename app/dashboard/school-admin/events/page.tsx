@@ -26,22 +26,21 @@ export default function SchoolAdminEventsPage() {
   });
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
-  const [userName, setUserName] = React.useState('Admin');
 
   const fetchEvents = async () => {
     try {
       const res = await fetch('/api/events');
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch events');
       if (Array.isArray(data)) setEvents(data);
-    } catch (err) {} finally {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch events');
+    } finally {
       setLoading(false);
     }
   };
 
   React.useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(meData => {
-      if (meData.user) setUserName(meData.user.name);
-    }).catch(e => {});
     fetchEvents();
   }, []);
 
@@ -50,16 +49,11 @@ export default function SchoolAdminEventsPage() {
     setError('');
     setSuccess('');
 
-    const meRes = await fetch('/api/auth/me');
-      const meData = await meRes.json();
-      if (!meData.user) return;
-      const user = meData.user;
-
     try {
       const res = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, school_id: user.school_id })
+        body: JSON.stringify(formData)
       });
 
       const data = await res.json();
@@ -81,12 +75,12 @@ export default function SchoolAdminEventsPage() {
       if (res.ok) {
         setEvents(events.filter(e => e.id !== id));
       }
-    } catch (err) {}
+    } catch {}
   };
 
   return (
     <div className="flex min-h-screen bg-[#f0f1f3]">
-      <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName={userName} />
+      <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName="Admin" />
 
       <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">

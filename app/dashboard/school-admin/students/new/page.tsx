@@ -44,6 +44,7 @@ export default function NewStudentPage() {
   const [photoPreview, setPhotoPreview] = React.useState('');
   const [profileImage, setProfileImage] = React.useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = React.useState(0);
+  const [generatedParentLogins, setGeneratedParentLogins] = React.useState<Array<{ name: string; phone: string; temporary_password: string | null }>>([]);
 
   const [formData, setFormData] = React.useState({
     name: '',
@@ -162,6 +163,8 @@ export default function NewStudentPage() {
       });
 
       if (response.ok) {
+        const result = await response.json();
+        setGeneratedParentLogins(result.parentAccounts || []);
         setSaved(true);
 
         setFormData({
@@ -200,6 +203,16 @@ export default function NewStudentPage() {
         setProfileImage(null);
         setPhotoPreview('');
         setFileInputKey((prev) => prev + 1);
+
+        if ((result.parentAccounts || []).length > 0) {
+          alert(
+            result.parentAccounts
+              .map((account: { name: string; phone: string; temporary_password: string | null }) =>
+                `${account.name} - ${account.phone} - ${account.temporary_password || 'Existing password kept'}`
+              )
+              .join('\n')
+          );
+        }
 
         setTimeout(() => setSaved(false), 3000);
       } else {
@@ -685,7 +698,9 @@ export default function NewStudentPage() {
                 <CheckCircle2 className="w-5 h-5" />
                 <div>
                   <p className="font-medium">Student Registered Successfully!</p>
-                  <p className="text-sm text-green-100">Parent account has been created/linked.</p>
+                  <p className="text-sm text-green-100">
+                    Parent account has been created/linked. {generatedParentLogins.length > 0 ? 'Login details were generated.' : 'Check the Parents panel for login details.'}
+                  </p>
                 </div>
               </motion.div>
             )}

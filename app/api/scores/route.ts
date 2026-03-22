@@ -30,6 +30,58 @@ export const POST = withAuth(
     }
 
     try {
+      const [student, subject] = await Promise.all([
+        prisma.student.findUnique({
+          where: { id: student_id },
+          select: {
+            id: true,
+            school_id: true,
+            class: {
+              select: {
+                id: true,
+                teacher_id: true,
+              },
+            },
+          },
+        }),
+        prisma.subject.findUnique({
+          where: { id: subject_id },
+          select: {
+            id: true,
+            school_id: true,
+            teachers: {
+              where: { id: session.user.id },
+              select: { id: true },
+            },
+          },
+        }),
+      ]);
+
+      if (!student || student.school_id !== school_id) {
+        return NextResponse.json(
+          { error: 'Student not found in your school.' },
+          { status: 404 }
+        );
+      }
+
+      if (!subject || subject.school_id !== school_id) {
+        return NextResponse.json(
+          { error: 'Subject not found in your school.' },
+          { status: 404 }
+        );
+      }
+
+      const isAssignedTeacher =
+        student.class?.teacher_id === session.user.id ||
+        subject.teachers.length > 0;
+
+      if (!isAssignedTeacher) {
+        return NextResponse.json(
+          { error: 'You are not assigned to score this student/subject.' },
+          { status: 403 }
+        );
+      }
+
       // Fetch grading configuration for the school
       const gradingConfig = await prisma.gradingConfig.findMany({
         where: { school_id },

@@ -76,7 +76,9 @@ model School {
   events              Event[]
   schoolPaymentDetail SchoolPaymentDetail?
   gradingConfigs      GradingConfig[]
+  academicPeriods     AcademicPeriod[]
   schoolFees          SchoolFee[]
+  studentFeeBalances  StudentFeeBalance[]
   payments            Payment[]
   teacherAttendance   TeacherAttendance[]
 }
@@ -111,6 +113,8 @@ model User {
   emailVerified DateTime?
   image     String?
   password  String
+  temporary_password String?
+  password_generated_at DateTime?
   role      Role
   school_id String?
   school    School? @relation(fields: [school_id], references: [id])
@@ -205,6 +209,7 @@ model Student {
 
   scores            Score[]
   attendance        Attendance[]
+  feeBalances       StudentFeeBalance[]
   payments          Payment[]
   completed_records CompletedStudent?
 
@@ -320,6 +325,20 @@ model GradingConfig {
   @@unique([school_id, grade])
 }
 
+model AcademicPeriod {
+  id            String   @id @default(uuid())
+  school_id     String
+  school        School   @relation(fields: [school_id], references: [id])
+  academic_year String
+  term          String
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@unique([school_id, academic_year, term])
+  @@index([school_id, academic_year, term])
+}
+
 // School Fees Configuration
 model SchoolFee {
   id            String    @id @default(uuid())
@@ -336,6 +355,7 @@ model SchoolFee {
   is_active     Boolean   @default(true)
   created_at    DateTime  @default(now())
   updated_at    DateTime  @updatedAt
+  studentFeeBalances StudentFeeBalance[]
 }
 
 enum FeeType {
@@ -367,5 +387,22 @@ model TeacherAttendance {
   status     AttendanceStatus
 
   @@unique([teacher_id, date])
+}
+
+model StudentFeeBalance {
+  id            String    @id @default(uuid())
+  school_id     String
+  school        School    @relation(fields: [school_id], references: [id])
+  student_id    String
+  student       Student   @relation(fields: [student_id], references: [id])
+  school_fee_id String
+  schoolFee     SchoolFee @relation(fields: [school_fee_id], references: [id])
+  amount_paid   Float     @default(0)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  @@unique([student_id, school_fee_id])
+  @@index([school_id, student_id])
+  @@index([school_fee_id])
 }
 

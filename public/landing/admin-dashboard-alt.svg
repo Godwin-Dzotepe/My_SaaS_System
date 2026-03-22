@@ -1,0 +1,18 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="980" rx="28" fill="#F5F8FF"/>
+  <rect width="298" height="980" fill="#2550D7"/>
+  <rect x="338" y="126" width="1218" height="120" rx="22" fill="white" stroke="#DBE4FF"/>
+  <rect x="338" y="276" width="286" height="116" rx="22" fill="white" stroke="#DBE4FF"/>
+  <rect x="650" y="276" width="286" height="116" rx="22" fill="white" stroke="#DBE4FF"/>
+  <rect x="962" y="276" width="286" height="116" rx="22" fill="white" stroke="#DBE4FF"/>
+  <rect x="1274" y="276" width="282" height="116" rx="22" fill="white" stroke="#DBE4FF"/>
+  <rect x="338" y="420" width="690" height="334" rx="24" fill="white" stroke="#DBE4FF"/>
+  <rect x="1052" y="420" width="504" height="334" rx="24" fill="white" stroke="#DBE4FF"/>
+  <path d="M432 668C522 582 598 548 678 548C754 548 808 634 886 634C944 634 994 568 1054 490" stroke="#3D6CF3" stroke-width="8" stroke-linecap="round"/>
+  <rect x="1168" y="556" width="38" height="124" rx="12" fill="#3D6CF3"/>
+  <rect x="1286" y="514" width="38" height="166" rx="12" fill="#3D6CF3"/>
+  <rect x="1404" y="592" width="38" height="88" rx="12" fill="#FFAA12"/>
+  <rect x="338" y="780" width="840" height="148" rx="24" fill="white" stroke="#DBE4FF"/>
+  <rect x="1204" y="780" width="352" height="148" rx="24" fill="white" stroke="#DBE4FF"/>
+  <text x="338" y="962" fill="#7A8EBE" font-family="Arial, sans-serif" font-size="28" font-weight="700">Analytics Dashboard Preview</text>
+</svg>

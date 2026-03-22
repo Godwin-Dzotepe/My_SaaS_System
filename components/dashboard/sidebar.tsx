@@ -20,6 +20,51 @@ interface SidebarProps {
 export function Sidebar({ items, userRole, userName }: SidebarProps) {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
+  const [brandName, setBrandName] = React.useState('FutureLink');
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const cacheKey = `sidebar-brand-${userRole}`;
+
+    if (typeof window !== 'undefined') {
+      const cachedBrandName = window.sessionStorage.getItem(cacheKey);
+      if (cachedBrandName) {
+        setBrandName(cachedBrandName);
+        return () => {
+          isMounted = false;
+        };
+      }
+    }
+
+    const loadBrandName = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const sessionUser = data?.user;
+        const schoolName = sessionUser?.schoolName;
+        const role = sessionUser?.role || userRole;
+
+        if (!isMounted) return;
+
+        const resolvedBrandName = role !== 'super_admin' && schoolName ? schoolName : 'FutureLink';
+        setBrandName(resolvedBrandName);
+
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem(cacheKey, resolvedBrandName);
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard brand name:', error);
+      }
+    };
+
+    loadBrandName();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userRole]);
 
   return (
     <>
@@ -49,7 +94,7 @@ export function Sidebar({ items, userRole, userName }: SidebarProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
               </div>
-              <span className="text-xl font-bold text-white">EduManage</span>
+              <span className="text-xl font-bold text-white truncate">{brandName}</span>
             </div>
           </div>
 

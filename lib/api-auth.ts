@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken, UserPayload } from './auth';
+import { verifyToken } from './auth';
 import { prisma } from './prisma';
 
 // Define a session object structure for clarity
@@ -101,6 +101,7 @@ export function withAuth(handler: AuthHandler, options?: AuthOptions) {
   return async (req: NextRequest, { params }: { params?: any } = {}) => {
     try {
       const authResult = await authorize(req, options?.roles);
+      const resolvedParams = params ? await Promise.resolve(params) : undefined;
 
       // Check if it's a plain `{ user }` object. 
       // This safely avoids `instanceof NextResponse` or deep property checks which crash Turbopack.
@@ -108,7 +109,7 @@ export function withAuth(handler: AuthHandler, options?: AuthOptions) {
         const session: Session = {
           user: authResult.user,
         };
-        return handler({ req, session, params });
+        return handler({ req, session, params: resolvedParams });
       }
 
       // Otherwise, it's the error NextResponse from authorize

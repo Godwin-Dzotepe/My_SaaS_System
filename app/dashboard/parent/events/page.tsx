@@ -16,19 +16,18 @@ import { PARENT_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 export default function ParentEventsPage() {
   const [events, setEvents] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [userName, setUserName] = React.useState('Parent');
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(meData => {
-      if (meData.user) setUserName(meData.user.name);
-    }).catch(e => {});
-
     const fetchEvents = async () => {
       try {
         const res = await fetch('/api/events');
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error || 'Failed to fetch events.');
         if (Array.isArray(data)) setEvents(data);
-      } catch (err) {} finally {
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch events.');
+      } finally {
         setLoading(false);
       }
     };
@@ -37,7 +36,7 @@ export default function ParentEventsPage() {
 
   return (
     <div className="flex min-h-screen bg-[#f0f1f3]">
-      <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName={userName} />
+      <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName="Parent" />
       
       <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
         <header>
@@ -47,6 +46,10 @@ export default function ParentEventsPage() {
 
         {loading ? (
           <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
+        ) : error ? (
+          <Card className="p-20 text-center text-red-600">
+            {error}
+          </Card>
         ) : events.length === 0 ? (
           <Card className="p-20 text-center text-gray-500">
              <Calendar className="w-12 h-12 mx-auto mb-4 opacity-10" />

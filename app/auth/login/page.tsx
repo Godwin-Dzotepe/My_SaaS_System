@@ -1,11 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { GraduationCap, Eye, EyeOff, Loader2, BookOpen, Users, School } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 
 const ROLE_REDIRECTS: Record<string, string> = {
   super_admin: '/dashboard/super-admin',
@@ -31,7 +29,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+
+        if (res.ok && data?.user?.role) {
+          const redirect = ROLE_REDIRECTS[data.user.role] || '/dashboard';
+          router.replace(redirect);
+          return;
+        }
+      } catch (err) {
+        console.error('Session check failed:', err);
+      } finally {
+        setCheckingSession(false);
+      }
+    };
+
+    checkSession();
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +80,17 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
+        <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-6 py-4 text-white backdrop-blur-xl">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Checking your session...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4 relative overflow-hidden">
@@ -119,7 +150,7 @@ export default function LoginPage() {
             <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg mb-4">
               <GraduationCap className="w-9 h-9 text-blue-700" />
             </div>
-            <h1 className="text-2xl font-bold text-white">EduManage</h1>
+            <h1 className="text-2xl font-bold text-white">FutureLink</h1>
             <p className="text-blue-200 text-sm mt-1">School Management System</p>
           </motion.div>
 
