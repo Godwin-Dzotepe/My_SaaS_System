@@ -4,8 +4,7 @@ import { Prisma } from '@prisma/client';
 import { authorize } from '@/lib/api-auth';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
+import { uploadImageToCloudinary } from '@/lib/cloudinary';
 
 const teacherCreateSchema = z.object({
   name: z.string().min(1),
@@ -67,26 +66,8 @@ async function parseTeacherRequest(req: NextRequest) {
 }
 
 async function saveTeacherProfileImage(file: File) {
-  if (!file.type.startsWith('image/')) {
-    throw new Error('Profile image must be an image file');
-  }
-
-  const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'teachers');
-  await mkdir(uploadsDir, { recursive: true });
-
-  const extension = path.extname(file.name) || '.jpg';
-  const safeBaseName = path
-    .basename(file.name, extension)
-    .replace(/[^a-zA-Z0-9-_]/g, '-')
-    .toLowerCase()
-    .slice(0, 40) || 'teacher-photo';
-  const fileName = `${Date.now()}-${safeBaseName}${extension.toLowerCase()}`;
-  const filePath = path.join(uploadsDir, fileName);
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  await writeFile(filePath, buffer);
-
-  return `/uploads/teachers/${fileName}`;
+  const upload = await uploadImageToCloudinary(file, 'my-school-saas/teachers');
+  return upload.url;
 }
 
 export async function GET(req: NextRequest) {

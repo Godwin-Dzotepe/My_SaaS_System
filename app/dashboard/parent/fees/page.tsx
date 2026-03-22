@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { PARENT_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
+import { formatGhanaCedis } from '@/lib/currency';
 
 interface ChildFeeBalance {
   id: string;
@@ -105,15 +106,15 @@ export default function ParentFeesPage() {
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <div className="rounded-lg bg-gray-50 p-4">
                           <p className="text-xs uppercase tracking-wide text-gray-500">Total Due</p>
-                          <p className="mt-2 text-xl font-bold text-gray-900">GHs {student.totals.total_due.toFixed(2)}</p>
+                          <p className="mt-2 text-xl font-bold text-gray-900">{formatGhanaCedis(student.totals.total_due)}</p>
                         </div>
                         <div className="rounded-lg bg-emerald-50 p-4">
                           <p className="text-xs uppercase tracking-wide text-emerald-700">Paid So Far</p>
-                          <p className="mt-2 text-xl font-bold text-emerald-700">GHs {student.totals.total_paid.toFixed(2)}</p>
+                          <p className="mt-2 text-xl font-bold text-emerald-700">{formatGhanaCedis(student.totals.total_paid)}</p>
                         </div>
                         <div className="rounded-lg bg-amber-50 p-4">
                           <p className="text-xs uppercase tracking-wide text-amber-700">Amount Left</p>
-                          <p className="mt-2 text-xl font-bold text-amber-700">GHs {student.totals.total_left.toFixed(2)}</p>
+                          <p className="mt-2 text-xl font-bold text-amber-700">{formatGhanaCedis(student.totals.total_left)}</p>
                         </div>
                       </div>
 
@@ -139,9 +140,9 @@ export default function ParentFeesPage() {
                                 <td className="p-4">
                                   {balance.term || 'No term'} ({balance.academic_year})
                                 </td>
-                                <td className="p-4 font-semibold">GHs {balance.total_amount.toFixed(2)}</td>
-                                <td className="p-4 text-emerald-700">GHs {balance.amount_paid.toFixed(2)}</td>
-                                <td className="p-4 text-amber-700">GHs {balance.amount_left.toFixed(2)}</td>
+                                <td className="p-4 font-semibold">{formatGhanaCedis(balance.total_amount)}</td>
+                                <td className="p-4 text-emerald-700">{formatGhanaCedis(balance.amount_paid)}</td>
+                                <td className="p-4 text-amber-700">{formatGhanaCedis(balance.amount_left)}</td>
                                 <td className="p-4">
                                   <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusTone(balance.status)}`}>
                                     {balance.status}

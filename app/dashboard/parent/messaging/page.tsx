@@ -1,33 +1,35 @@
 'use client';
 
 import * as React from 'react';
-import { Sidebar } from '@/components/dashboard/sidebar';
+import { MessageCenter } from '@/components/messaging/message-center';
 import { PARENT_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
-import { MessageSquare } from 'lucide-react';
+
+const recipientOptions = [
+  { value: 'school_admin', label: 'School Admin' },
+] as const;
 
 export default function ParentMessagingPage() {
   const [userName, setUserName] = React.useState('Parent');
 
   React.useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user) setUserName(d.user.name); }).catch(console.error);
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data?.user?.name) {
+          setUserName(data.user.name);
+        }
+      })
+      .catch(console.error);
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName={userName} />
-      
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <MessageSquare className="w-6 h-6 text-gray-600" />
-            Messages
-          </h1>
-        </div>
-        
-        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
-          Messaging module coming soon...
-        </div>
-      </div>
-    </div>
+    <MessageCenter
+      heading="Message School Admin"
+      subheading="Send a message to your school admin and keep track of the replies in one place."
+      currentRole="parent"
+      userName={userName}
+      sidebarItems={PARENT_SIDEBAR_ITEMS}
+      recipientOptions={[...recipientOptions]}
+    />
   );
 }

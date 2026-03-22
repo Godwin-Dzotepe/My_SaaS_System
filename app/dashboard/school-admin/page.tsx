@@ -11,7 +11,6 @@ import {
   GraduationCap, 
   School, 
   CreditCard, 
-  TrendingUp,
   Plus,
   Upload,
   MessageSquare,
@@ -33,6 +32,7 @@ import {
   Area
 } from 'recharts';
 import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
+import { formatGhanaCedis } from '@/lib/currency';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -205,9 +205,7 @@ export default function SchoolAdminDashboard() {
                   <div>
                     <p className="text-xs font-semibold text-[#646464] uppercase tracking-wider">Revenue</p>
                     <h3 className="text-2xl font-bold text-[#212529]">
-                      {loading ? <Loader className="w-5 h-5 animate-spin" /> : `$
-                        ${stats.totalRevenue.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                      `}
+                      {loading ? <Loader className="w-5 h-5 animate-spin" /> : formatGhanaCedis(stats.totalRevenue)}
                     </h3>
                   </div>
                </div>

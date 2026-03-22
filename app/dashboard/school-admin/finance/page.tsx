@@ -1,80 +1,83 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   TrendingUp,
   TrendingDown,
-  DollarSign,
   ArrowLeft,
-  Calendar,
   Download,
-  Filter,
-  CreditCard
+  Wallet,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { motion } from 'framer-motion';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { formatGhanaCedis } from '@/lib/currency';
 
-
+interface RecentBalance {
+  id: string;
+  student: string;
+  class_name: string;
+  fee_type: string;
+  amount_expected: number;
+  amount_paid: number;
+  amount_left: number;
+  status: 'Paid' | 'Partially Paid' | 'Unpaid';
+  period: string;
+  updated_at: string;
+}
 
 interface FinanceSummary {
-  total_collected: number;
+  total_expected: number;
+  total_paid: number;
   total_pending: number;
+  paid_students: number;
+  unpaid_students: number;
+  partially_paid_students: number;
+  collection_rate: number;
+  recent_balances: RecentBalance[];
+  school_name: string;
   currency: string;
 }
 
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
 };
 
 const itemVariants = {
   hidden: { y: 20, opacity: 0 },
-  visible: { y: 0, opacity: 1 }
+  visible: { y: 0, opacity: 1 },
 };
 
 export default function FinanceOverviewPage() {
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchSummary = async () => {
       try {
-        // Get school ID from user session
-        let schoolId = '';
-        try {
-          const res = await fetch('/api/auth/me');
-          const data = await res.json();
-          schoolId = data.user?.school_id || '';
-        } catch (e) {
-          console.error(e);
+        setLoading(true);
+        setError('');
+
+        const response = await fetch('/api/finance/summary', {
+          cache: 'no-store',
+        });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(data?.error || 'Failed to fetch finance summary.');
         }
 
-        if (!schoolId) {
-          console.error('No school_id found in user session');
-          setLoading(false);
-          return;
-        }
-        
-        const response = await fetch(`/api/finance/summary?school_id=${schoolId}`, {
-          headers: {}
-        }); 
-        if (response.ok) {
-          const data = await response.json();
-          setSummary(data);
-        }
-      } catch (error) {
-        console.error('Error fetching finance summary:', error);
+        setSummary(data);
+      } catch (fetchError) {
+        console.error('Error fetching finance summary:', fetchError);
+        setError(fetchError instanceof Error ? fetchError.message : 'Failed to fetch finance summary.');
       } finally {
         setLoading(false);
       }
@@ -83,215 +86,272 @@ export default function FinanceOverviewPage() {
     fetchSummary();
   }, []);
 
-  // Mock data for the chart/recent transactions since the API is basic
-  const recentTransactions = [
-    { id: 1, student: 'Alice Cooper', amount: 500, date: '2024-03-10', status: 'paid', type: 'Tuition' },
-    { id: 2, student: 'Bob Smith', amount: 300, date: '2024-03-09', status: 'pending', type: 'Library Fee' },
-    { id: 3, student: 'Carol White', amount: 450, date: '2024-03-08', status: 'paid', type: 'Tuition' },
-    { id: 4, student: 'David Brown', amount: 120, date: '2024-03-07', status: 'paid', type: 'Lab Fee' },
-  ];
+  const formatMoney = (value: number) => formatGhanaCedis(value);
+
+  const handleDownload = () => {
+    if (!summary) return;
+
+    const rows = [
+      ['Student', 'Class', 'Fee Type', 'Period', 'Expected', 'Paid', 'Pending', 'Status'],
+      ...summary.recent_balances.map((balance) => [
+        balance.student,
+        balance.class_name,
+        balance.fee_type,
+        balance.period,
+        balance.amount_expected.toFixed(2),
+        balance.amount_paid.toFixed(2),
+        balance.amount_left.toFixed(2),
+        balance.status,
+      ]),
+    ];
+
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `finance-summary-${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName="Admin User" />
-      
-      <motion.div 
-        className="flex-1 lg:ml-64"
-        initial="hidden"
-        animate="visible"
-        variants={containerVariants}
-      >
-        <div className="p-4 lg:p-8 space-y-6">
-          {/* Header */}
-          <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+
+      <motion.div className="flex-1 lg:ml-64" initial="hidden" animate="visible" variants={containerVariants}>
+        <div className="space-y-6 p-4 lg:p-8">
+          <motion.div variants={itemVariants} className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard/school-admin">
                 <Button variant="ghost" size="sm" className="gap-2">
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="h-4 w-4" />
                   Back
                 </Button>
               </Link>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Financial Overview</h1>
-                <p className="text-gray-600">Track revenue, pending fees, and school expenses</p>
+                <p className="text-gray-600">
+                  {loading ? 'Loading finance data...' : `Live fee summary for ${summary?.school_name || 'your school'}`}
+                </p>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="gap-2">
-                <Download className="w-4 h-4" />
-                Export Report
-              </Button>
-              <Button className="gap-2">
-                <Calendar className="w-4 h-4" />
-                This Term
-              </Button>
+            <Button variant="outline" className="gap-2" onClick={handleDownload} disabled={!summary}>
+              <Download className="h-4 w-4" />
+              Export Report
+            </Button>
+          </motion.div>
+
+          {error ? (
+            <motion.div variants={itemVariants} className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </motion.div>
+          ) : null}
+
+          {loading ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
             </div>
-          </motion.div>
-
-          {/* Stats Grid */}
-          <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="border-l-4 border-l-green-500">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Revenue</p>
-                    <h3 className="text-3xl font-bold text-gray-900 mt-1">
-                      {loading ? '...' : `$${summary?.total_collected.toLocaleString() || '0'}`}
-                    </h3>
-                  </div>
-                  <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-green-600">
-                    <TrendingUp className="w-6 h-6" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-sm text-green-600 font-medium">
-                  <TrendingUp className="w-4 h-4" />
-                  <span>+8.2% from last term</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-amber-500">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Pending Fees</p>
-                    <h3 className="text-3xl font-bold text-gray-900 mt-1">
-                      {loading ? '...' : `$${summary?.total_pending.toLocaleString() || '0'}`}
-                    </h3>
-                  </div>
-                  <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-600">
-                    <CreditCard className="w-6 h-6" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-sm text-amber-600 font-medium">
-                  <TrendingDown className="w-4 h-4" />
-                  <span>12 students with overdue payments</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-blue-500">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Expenses</p>
-                    <h3 className="text-3xl font-bold text-gray-900 mt-1">$8,240</h3>
-                  </div>
-                  <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
-                    <DollarSign className="w-6 h-6" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-sm text-blue-600 font-medium">
-                  <TrendingUp className="w-4 h-4" />
-                  <span>Staff salaries & utilities</span>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Recent Transactions */}
-            <motion.div variants={itemVariants} className="lg:col-span-2">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>Recent Transactions</CardTitle>
-                    <CardDescription>Latest fee payments and receipts</CardDescription>
-                  </div>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Filter className="w-4 h-4" />
-                    Filter
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-100">
-                          <th className="text-left py-3 px-2 text-sm font-medium text-gray-500">Student</th>
-                          <th className="text-left py-3 px-2 text-sm font-medium text-gray-500">Type</th>
-                          <th className="text-left py-3 px-2 text-sm font-medium text-gray-500">Date</th>
-                          <th className="text-left py-3 px-2 text-sm font-medium text-gray-500">Amount</th>
-                          <th className="text-left py-3 px-2 text-sm font-medium text-gray-500">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recentTransactions.map((tx) => (
-                          <tr key={tx.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                            <td className="py-4 px-2 font-medium text-gray-900">{tx.student}</td>
-                            <td className="py-4 px-2 text-gray-600 text-sm">{tx.type}</td>
-                            <td className="py-4 px-2 text-gray-500 text-sm">{tx.date}</td>
-                            <td className="py-4 px-2 font-semibold text-gray-900">${tx.amount}</td>
-                            <td className="py-4 px-2">
-                              <Badge variant={tx.status === 'paid' ? 'success' : 'secondary'}>
-                                {tx.status}
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <Button variant="ghost" className="w-full mt-4 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                    View All Transactions
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            {/* Revenue Breakdown */}
-            <motion.div variants={itemVariants}>
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>Revenue Breakdown</CardTitle>
-                  <CardDescription>By category this term</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Tuition Fees</span>
-                      <span className="font-medium text-gray-900">75%</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: '75%' }}></div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Transport</span>
-                      <span className="font-medium text-gray-900">15%</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div className="bg-green-500 h-2 rounded-full" style={{ width: '15%' }}></div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Books & Uniforms</span>
-                      <span className="font-medium text-gray-900">10%</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div className="bg-amber-500 h-2 rounded-full" style={{ width: '10%' }}></div>
-                    </div>
-                  </div>
-
-                  <div className="pt-6 border-t border-gray-100">
-                    <h4 className="text-sm font-semibold text-gray-900 mb-4">Quick Stats</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <p className="text-xs text-gray-500">Paid In Full</p>
-                        <p className="text-lg font-bold text-gray-900">84%</p>
+          ) : summary ? (
+            <>
+              <motion.div variants={itemVariants} className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <Card className="border-l-4 border-l-blue-500">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium uppercase tracking-wider text-gray-500">Expected Total</p>
+                        <h3 className="mt-1 text-3xl font-bold text-gray-900">{formatMoney(summary.total_expected)}</h3>
                       </div>
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <p className="text-xs text-gray-500">Partial</p>
-                        <p className="text-lg font-bold text-gray-900">12%</p>
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                        <Wallet className="h-6 w-6" />
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
+                    <div className="mt-4 text-sm font-medium text-blue-600">
+                      Full amount if every student clears every assigned fee
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-green-500">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium uppercase tracking-wider text-gray-500">Paid Amount</p>
+                        <h3 className="mt-1 text-3xl font-bold text-gray-900">{formatMoney(summary.total_paid)}</h3>
+                      </div>
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-50 text-green-600">
+                        <TrendingUp className="h-6 w-6" />
+                      </div>
+                    </div>
+                    <div className="mt-4 text-sm font-medium text-green-600">
+                      Collection rate: {summary.collection_rate.toFixed(1)}%
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-amber-500">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium uppercase tracking-wider text-gray-500">Pending Amount</p>
+                        <h3 className="mt-1 text-3xl font-bold text-gray-900">{formatMoney(summary.total_pending)}</h3>
+                      </div>
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+                        <TrendingDown className="h-6 w-6" />
+                      </div>
+                    </div>
+                    <div className="mt-4 text-sm font-medium text-amber-600">
+                      Amount still outstanding across all student fee balances
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <motion.div variants={itemVariants} className="lg:col-span-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Recent Fee Balances</CardTitle>
+                      <CardDescription>Latest student fee positions from the live school balance ledger</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-gray-100">
+                              <th className="px-2 py-3 text-left text-sm font-medium text-gray-500">Student</th>
+                              <th className="px-2 py-3 text-left text-sm font-medium text-gray-500">Fee</th>
+                              <th className="px-2 py-3 text-left text-sm font-medium text-gray-500">Period</th>
+                              <th className="px-2 py-3 text-left text-sm font-medium text-gray-500">Expected</th>
+                              <th className="px-2 py-3 text-left text-sm font-medium text-gray-500">Paid</th>
+                              <th className="px-2 py-3 text-left text-sm font-medium text-gray-500">Pending</th>
+                              <th className="px-2 py-3 text-left text-sm font-medium text-gray-500">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {summary.recent_balances.map((balance) => (
+                              <tr key={balance.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                                <td className="px-2 py-4">
+                                  <div className="font-medium text-gray-900">{balance.student}</div>
+                                  <div className="text-sm text-gray-500">{balance.class_name}</div>
+                                </td>
+                                <td className="px-2 py-4 text-sm text-gray-600">{balance.fee_type}</td>
+                                <td className="px-2 py-4 text-sm text-gray-500">{balance.period}</td>
+                                <td className="px-2 py-4 font-semibold text-gray-900">{formatMoney(balance.amount_expected)}</td>
+                                <td className="px-2 py-4 font-semibold text-emerald-700">{formatMoney(balance.amount_paid)}</td>
+                                <td className="px-2 py-4 font-semibold text-amber-700">{formatMoney(balance.amount_left)}</td>
+                                <td className="px-2 py-4">
+                                  <Badge
+                                    className={
+                                      balance.status === 'Paid'
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : balance.status === 'Partially Paid'
+                                          ? 'bg-amber-100 text-amber-700'
+                                          : 'bg-rose-100 text-rose-700'
+                                    }
+                                  >
+                                    {balance.status}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                            {summary.recent_balances.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} className="px-2 py-10 text-center text-gray-500">
+                                  No fee balances have been assigned yet.
+                                </td>
+                              </tr>
+                            ) : null}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                <motion.div variants={itemVariants}>
+                  <Card className="h-full">
+                    <CardHeader>
+                      <CardTitle>Collection Snapshot</CardTitle>
+                      <CardDescription>Student payment standing from the current fee ledger</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Fully Paid Students</span>
+                          <span className="font-medium text-gray-900">{summary.paid_students}</span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-gray-100">
+                          <div
+                            className="h-2 rounded-full bg-green-500"
+                            style={{
+                              width: `${summary.paid_students + summary.unpaid_students + summary.partially_paid_students > 0
+                                ? (summary.paid_students / (summary.paid_students + summary.unpaid_students + summary.partially_paid_students)) * 100
+                                : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Partially Paid Students</span>
+                          <span className="font-medium text-gray-900">{summary.partially_paid_students}</span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-gray-100">
+                          <div
+                            className="h-2 rounded-full bg-amber-500"
+                            style={{
+                              width: `${summary.paid_students + summary.unpaid_students + summary.partially_paid_students > 0
+                                ? (summary.partially_paid_students / (summary.paid_students + summary.unpaid_students + summary.partially_paid_students)) * 100
+                                : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Students Still Owing</span>
+                          <span className="font-medium text-gray-900">{summary.unpaid_students}</span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-gray-100">
+                          <div
+                            className="h-2 rounded-full bg-rose-500"
+                            style={{
+                              width: `${summary.paid_students + summary.unpaid_students + summary.partially_paid_students > 0
+                                ? (summary.unpaid_students / (summary.paid_students + summary.unpaid_students + summary.partially_paid_students)) * 100
+                                : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-100 pt-6">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="rounded-lg bg-gray-50 p-3">
+                            <p className="text-xs text-gray-500">Expected</p>
+                            <p className="text-lg font-bold text-gray-900">{formatMoney(summary.total_expected)}</p>
+                          </div>
+                          <div className="rounded-lg bg-gray-50 p-3">
+                            <p className="text-xs text-gray-500">Pending</p>
+                            <p className="text-lg font-bold text-gray-900">{formatMoney(summary.total_pending)}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-blue-50 p-4 text-sm text-blue-700">
+                        This finance page now uses the same student fee balances that power the admin fee checker and parent fee pages.
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </div>
+            </>
+          ) : null}
         </div>
       </motion.div>
     </div>

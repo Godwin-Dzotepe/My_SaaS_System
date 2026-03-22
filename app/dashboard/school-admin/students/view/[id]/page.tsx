@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import {
   ArrowLeft,
@@ -25,6 +26,7 @@ import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { formatGhanaCedis } from '@/lib/currency';
 
 interface StudentDetail {
   id: string;
@@ -139,12 +141,6 @@ interface StudentDetail {
     created_at: string;
   } | null;
 }
-
-const currency = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 2,
-});
 
 function formatDate(value?: string | null) {
   if (!value) return 'Not available';
@@ -312,9 +308,11 @@ export default function StudentDetailPage() {
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-5">
                   {student.profile_image ? (
-                    <img
+                    <Image
                       src={student.profile_image}
                       alt={student.name}
+                      width={96}
+                      height={96}
                       className="h-24 w-24 rounded-3xl border border-white/20 object-cover shadow-lg"
                     />
                   ) : (
@@ -399,7 +397,7 @@ export default function StudentDetailPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-500">Payments Received</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">{currency.format(totalPaid)}</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-900">{formatGhanaCedis(totalPaid)}</p>
                   </div>
                   <CreditCard className="h-10 w-10 text-amber-600" />
                 </div>
@@ -414,7 +412,7 @@ export default function StudentDetailPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-500">Outstanding Fees</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">{currency.format(outstandingFees)}</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-900">{formatGhanaCedis(outstandingFees)}</p>
                   </div>
                   <ShieldCheck className="h-10 w-10 text-rose-600" />
                 </div>
@@ -658,7 +656,7 @@ export default function StudentDetailPage() {
                             {fee.academic_year}{fee.term ? ` | ${fee.term}` : ''}
                           </p>
                         </div>
-                        <p className="text-lg font-bold text-gray-900">{currency.format(fee.amount)}</p>
+                        <p className="text-lg font-bold text-gray-900">{formatGhanaCedis(fee.amount)}</p>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-500">
                         <span>Due: {formatDate(fee.due_date)}</span>
@@ -698,7 +696,7 @@ export default function StudentDetailPage() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-gray-900">{currency.format(payment.amount)}</p>
+                          <p className="text-lg font-bold text-gray-900">{formatGhanaCedis(payment.amount)}</p>
                           <Badge
                             variant={
                               payment.status === 'PAID'

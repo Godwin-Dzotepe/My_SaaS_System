@@ -1,27 +1,35 @@
 'use client';
 
 import * as React from 'react';
-import { Sidebar } from '@/components/dashboard/sidebar';
+import { MessageCenter } from '@/components/messaging/message-center';
 import { TEACHER_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
+
+const recipientOptions = [
+  { value: 'school_admin', label: 'School Admin' },
+] as const;
 
 export default function TeacherMessagingPage() {
   const [userName, setUserName] = React.useState('Teacher');
 
   React.useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user) setUserName(d.user.name); }).catch(console.error);
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data?.user?.name) {
+          setUserName(data.user.name);
+        }
+      })
+      .catch(console.error);
   }, []);
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName={userName} />
-      
-      <div className="flex-1 flex flex-col min-w-0 lg:ml-64 p-4 lg:p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Messaging</h1>
-        
-        <div className="flex-1 bg-white rounded-xl border border-gray-200 overflow-hidden flex items-center justify-center">
-          <p className="text-gray-500">Messaging module coming soon...</p>
-        </div>
-      </div>
-    </div>
+    <MessageCenter
+      heading="Message School Admin"
+      subheading="Send a message to your school admin, and manage the ones you have already sent."
+      currentRole="teacher"
+      userName={userName}
+      sidebarItems={TEACHER_SIDEBAR_ITEMS}
+      recipientOptions={[...recipientOptions]}
+    />
   );
 }

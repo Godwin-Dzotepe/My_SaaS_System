@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Loader2, RefreshCcw } from 'lucide-react';
+import { formatGhanaCedis } from '@/lib/currency';
 
 interface FeeCheckerRow {
   id: string;
@@ -178,15 +179,15 @@ export default function FeesCheckerPage() {
                         <div className="grid grid-cols-3 gap-3 text-sm">
                           <div className="rounded-lg bg-gray-50 p-3">
                             <p className="text-gray-500">Total</p>
-                            <p className="mt-1 font-semibold text-gray-900">GHs {row.total_amount.toFixed(2)}</p>
+                            <p className="mt-1 font-semibold text-gray-900">{formatGhanaCedis(row.total_amount)}</p>
                           </div>
                           <div className="rounded-lg bg-emerald-50 p-3">
                             <p className="text-emerald-700">Paid</p>
-                            <p className="mt-1 font-semibold text-emerald-700">GHs {row.amount_paid.toFixed(2)}</p>
+                            <p className="mt-1 font-semibold text-emerald-700">{formatGhanaCedis(row.amount_paid)}</p>
                           </div>
                           <div className="rounded-lg bg-amber-50 p-3">
                             <p className="text-amber-700">Left</p>
-                            <p className="mt-1 font-semibold text-amber-700">GHs {row.amount_left.toFixed(2)}</p>
+                            <p className="mt-1 font-semibold text-amber-700">{formatGhanaCedis(row.amount_left)}</p>
                           </div>
                         </div>
 

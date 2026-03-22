@@ -1,60 +1,89 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Sidebar } from "@/components/dashboard/sidebar";
-import { ADMIN_SIDEBAR_ITEMS } from "@/lib/sidebar-configs";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { Sidebar } from '@/components/dashboard/sidebar';
+import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
+import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Calendar, CheckCircle2, Download, Loader2, XCircle } from 'lucide-react';
+import Link from 'next/link';
 
-type Teacher = {
-  id: string;
-  name: string;
+type PreviewRow = {
+  teacher_id: string;
+  teacher_name: string;
+  phone: string;
+  email: string | null;
+  status: 'Present' | 'Absent';
+  hasMarkedSelf: boolean;
+  record_id: string | null;
+  recorded_at: string | null;
+};
+
+type PreviewResponse = {
+  date: string;
+  preview: PreviewRow[];
+  summary: {
+    total_teachers: number;
+    present: number;
+    absent: number;
+  };
 };
 
 export default function TeacherAttendancePage() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [attendance, setAttendance] = useState<{ [key: string]: string }>({});
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [preview, setPreview] = useState<PreviewResponse | null>(null);
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchTeachers();
-  }, []);
-
-  const fetchTeachers = async () => {
+  const fetchPreview = async (selectedDate: string) => {
     try {
-      const res = await fetch("/api/teachers");
-      if (res.ok) {
-        const data = await res.json();
-        setTeachers(data.teachers || []);
+      setLoading(true);
+      setError('');
+      const res = await fetch(`/api/attendance/teachers/preview?date=${selectedDate}`, {
+        cache: 'no-store',
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load attendance preview.');
       }
-    } catch (e) {
-      console.error(e);
+
+      setPreview(data);
+    } catch (fetchError) {
+      console.error(fetchError);
+      setPreview(null);
+      setError(fetchError instanceof Error ? fetchError.message : 'Failed to load attendance preview.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStatusChange = (teacherId: string, status: string) => {
-    setAttendance((prev) => ({ ...prev, [teacherId]: status }));
-  };
+  useEffect(() => {
+    fetchPreview(date);
+  }, [date]);
 
-  const handleSave = async () => {
-    setSaving(true);
+  const handleFinalize = async () => {
     try {
-      for (const [teacherId, status] of Object.entries(attendance)) {
-        await fetch("/api/attendance/teachers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ teacherId, status, date }),
-        });
+      setSaving(true);
+      setError('');
+
+      const res = await fetch('/api/attendance/teachers/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to finalize teacher attendance.');
       }
-      alert("Attendance saved successfully");
-    } catch (e) {
-      console.error(e);
-      alert("Error saving attendance");
+
+      await fetchPreview(date);
+      alert('Teacher attendance saved successfully.');
+    } catch (saveError) {
+      console.error(saveError);
+      setError(saveError instanceof Error ? saveError.message : 'Failed to finalize teacher attendance.');
     } finally {
       setSaving(false);
     }
@@ -62,69 +91,115 @@ export default function TeacherAttendancePage() {
 
   return (
     <div className="flex min-h-screen bg-[#f0f1f3]">
-      <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school_admin" userName="Admin" />
-      <motion.div
-        className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="flex justify-between items-center mb-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+      <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName="Admin" />
+      <motion.div className="flex-1 space-y-6 p-4 lg:ml-64 lg:p-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Teacher Attendance</h1>
-            <p className="text-sm text-gray-500 mt-1">Review and manage daily teacher attendance</p>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Teacher Attendance Preview</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Teachers who marked themselves show as present. Everyone else previews as absent until you save the day.
+            </p>
           </div>
-          <Button onClick={handleSave} disabled={saving || Object.keys(attendance).length === 0} className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-6 py-2 shadow-sm font-medium">
-            {saving ? "Saving..." : "Save Daily Attendance"}
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Link href="/dashboard/school-admin/teacher-attendance/records">
+              <Button variant="outline" className="gap-2">
+                <Download className="h-4 w-4" />
+                View Records
+              </Button>
+            </Link>
+            <Button onClick={handleFinalize} disabled={saving || !preview} className="bg-blue-600 text-white hover:bg-blue-700">
+              {saving ? 'Saving...' : 'Save Daily Attendance'}
+            </Button>
+          </div>
         </div>
 
-        <div className="flex items-center space-x-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-          <Calendar className="text-gray-400 w-5 h-5" />
+        <div className="mb-6 flex items-center space-x-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+          <Calendar className="h-5 w-5 text-gray-400" />
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="border-gray-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+            className="rounded-lg border-gray-200 text-sm focus:border-blue-500 focus:ring-blue-500"
           />
         </div>
 
+        {error ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+        ) : null}
+
         {loading ? (
-          <div className="text-center py-12 text-gray-500 font-medium">Loading teachers...</div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="text-left py-4 px-6 font-semibold text-gray-600 text-sm">Teacher Name</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-600 text-sm">Attendance Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {teachers.map((teacher) => (
-                  <tr key={teacher.id} className="hover:bg-gray-50/30 transition-colors">
-                    <td className="py-4 px-6 text-gray-800 font-medium">{teacher.name}</td>
-                    <td className="py-4 px-6">
-                      <select
-                        className="border border-gray-200 rounded-lg p-2 text-sm focus:ring-blue-500 focus:border-blue-500 outline-none w-48 text-gray-700"
-                        value={attendance[teacher.id] || ""}
-                        onChange={(e) => handleStatusChange(teacher.id, e.target.value)}
-                      >
-                        <option value="">Select Status</option>
-                        <option value="PRESENT">Present</option>
-                        <option value="ABSENT">Absent</option>
-                        <option value="LATE">Late</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-                {teachers.length === 0 && (
-                  <tr>
-                    <td colSpan={2} className="py-8 px-6 text-center text-gray-500">No teachers found in the system.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <div className="flex justify-center py-12 text-gray-500">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
           </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-2xl bg-white p-5 shadow-sm">
+                <p className="text-sm text-gray-500">Total Teachers</p>
+                <p className="mt-2 text-3xl font-bold text-gray-900">{preview?.summary.total_teachers ?? 0}</p>
+              </div>
+              <div className="rounded-2xl bg-white p-5 shadow-sm">
+                <p className="text-sm text-gray-500">Present</p>
+                <p className="mt-2 text-3xl font-bold text-emerald-600">{preview?.summary.present ?? 0}</p>
+              </div>
+              <div className="rounded-2xl bg-white p-5 shadow-sm">
+                <p className="text-sm text-gray-500">Absent</p>
+                <p className="mt-2 text-3xl font-bold text-rose-600">{preview?.summary.absent ?? 0}</p>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Teacher</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Contact</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Preview Status</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Marked Self</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {preview?.preview.map((teacher) => (
+                    <tr key={teacher.teacher_id} className="transition-colors hover:bg-gray-50/40">
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-gray-900">{teacher.teacher_name}</p>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        <div>{teacher.phone}</div>
+                        <div>{teacher.email || 'No email'}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium ${
+                            teacher.status === 'Present'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-rose-100 text-rose-700'
+                          }`}
+                        >
+                          {teacher.status === 'Present' ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                          {teacher.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {teacher.hasMarkedSelf ? (
+                          <span className="font-medium text-emerald-700">Yes</span>
+                        ) : (
+                          <span className="font-medium text-rose-700">No</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {preview && preview.preview.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-10 text-center text-gray-500">
+                        No teachers found in the system.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </motion.div>
     </div>

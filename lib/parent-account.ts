@@ -6,6 +6,7 @@ import { sendPasswordSMS } from '@/lib/sms-service';
 interface EnsureParentAccountParams {
   name?: string;
   phone?: string;
+  email?: string;
   schoolId: string;
   schoolName: string;
 }
@@ -25,6 +26,7 @@ export interface ParentAccountResult {
 export async function ensureParentAccount({
   name,
   phone,
+  email,
   schoolId,
   schoolName,
 }: EnsureParentAccountParams): Promise<ParentAccountResult | null> {
@@ -36,6 +38,7 @@ export async function ensureParentAccount({
       id: true,
       name: true,
       phone: true,
+      email: true,
       role: true,
       school_id: true,
       temporary_password: true,
@@ -50,6 +53,7 @@ export async function ensureParentAccount({
       data: {
         name,
         phone,
+        email: email || undefined,
         password: hashedPassword,
         temporary_password: generatedPassword,
         password_generated_at: new Date(),
@@ -60,6 +64,7 @@ export async function ensureParentAccount({
         id: true,
         name: true,
         phone: true,
+        email: true,
         role: true,
         school_id: true,
         temporary_password: true,
@@ -90,11 +95,15 @@ export async function ensureParentAccount({
   if (!parentUser.school_id) {
     parentUser = await prisma.user.update({
       where: { id: parentUser.id },
-      data: { school_id: schoolId },
+      data: {
+        school_id: schoolId,
+        ...(email && !parentUser.email ? { email } : {}),
+      },
       select: {
         id: true,
         name: true,
         phone: true,
+        email: true,
         role: true,
         school_id: true,
         temporary_password: true,

@@ -28,7 +28,7 @@ export default function SecretaryTeacherAttendancePage() {
       const res = await fetch("/api/teachers");
       if (res.ok) {
         const data = await res.json();
-        setTeachers(data.teachers || []);
+        setTeachers(Array.isArray(data) ? data : data.teachers || []);
       }
     } catch (e) {
       console.error(e);
@@ -52,6 +52,7 @@ export default function SecretaryTeacherAttendancePage() {
         });
       }
       alert("Attendance saved successfully");
+      return;
     } catch (e) {
       console.error(e);
       alert("Error saving attendance");
@@ -71,7 +72,7 @@ export default function SecretaryTeacherAttendancePage() {
         <div className="flex justify-between items-center mb-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Teacher Attendance</h1>
-            <p className="text-sm text-gray-500 mt-1">Record today's teacher attendance</p>
+            <p className="text-sm text-gray-500 mt-1">Record today&apos;s teacher attendance</p>
           </div>
           <Button onClick={handleSave} disabled={saving || Object.keys(attendance).length === 0} className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-6 py-2 shadow-sm font-medium">
             {saving ? "Saving..." : "Save Daily Attendance"}

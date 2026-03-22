@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
+import { prisma } from '@/lib/prisma';
+import {
+  calculateAmountLeft,
+  calculateFeeStatus,
+  ensureStudentFeeBalancesForSchool,
+  getStudentFeeBalanceModel,
+} from '@/lib/fee-balances';
 
 const querySchema = z.object({
   school_id: z.string().uuid().optional(),
@@ -27,45 +33,25 @@ export async function GET(req: NextRequest) {
     }
 
     const schoolId = validation.data.school_id;
+    await ensureStudentFeeBalancesForSchool(schoolId);
 
-    const collected = await prisma.payment.aggregate({
-      _sum: { amount: true },
-      where: {
-        school_id: schoolId,
-        status: 'PAID'
-      }
-    });
+    const studentFeeBalanceModel = getStudentFeeBalanceModel();
+    if (!studentFeeBalanceModel) {
+      return NextResponse.json(
+        { error: 'Fee balances are not ready yet. Please restart the dev server once and try again.' },
+        { status: 503 }
+      );
+    }
 
-    const pending = await prisma.payment.aggregate({
-      _sum: { amount: true },
-      where: {
-        school_id: schoolId,
-        status: 'PENDING'
-      }
-    });
-
-    const [paidCount, unpaidCount, recentPayments, school] = await Promise.all([
-      prisma.payment.groupBy({
-        by: ['student_id'],
-        where: {
-          school_id: schoolId,
-          status: 'PAID',
-        },
-      }),
-      prisma.payment.groupBy({
-        by: ['student_id'],
-        where: {
-          school_id: schoolId,
-          status: 'PENDING',
-        },
-      }),
-      prisma.payment.findMany({
+    const [balances, school] = await Promise.all([
+      studentFeeBalanceModel.findMany({
         where: {
           school_id: schoolId,
         },
         include: {
           student: {
             select: {
+              id: true,
               name: true,
               class: {
                 select: {
@@ -74,11 +60,19 @@ export async function GET(req: NextRequest) {
               },
             },
           },
+          schoolFee: {
+            select: {
+              fee_type: true,
+              amount: true,
+              academic_year: true,
+              term: true,
+            },
+          },
         },
-        orderBy: {
-          created_at: 'desc',
-        },
-        take: 8,
+        orderBy: [
+          { updated_at: 'desc' },
+          { student: { name: 'asc' } },
+        ],
       }),
       prisma.school.findUnique({
         where: { id: schoolId },
@@ -86,25 +80,56 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    const total_expected = balances.reduce((sum: number, balance: any) => sum + balance.schoolFee.amount, 0);
+    const total_paid = balances.reduce((sum: number, balance: any) => sum + balance.amount_paid, 0);
+    const total_pending = balances.reduce(
+      (sum: number, balance: any) => sum + calculateAmountLeft(balance.schoolFee.amount, balance.amount_paid),
+      0
+    );
+
+    const studentStatusMap = new Map<string, { expected: number; paid: number; left: number }>();
+    for (const balance of balances) {
+      const current = studentStatusMap.get(balance.student_id) ?? { expected: 0, paid: 0, left: 0 };
+      current.expected += balance.schoolFee.amount;
+      current.paid += balance.amount_paid;
+      current.left += calculateAmountLeft(balance.schoolFee.amount, balance.amount_paid);
+      studentStatusMap.set(balance.student_id, current);
+    }
+
+    const paid_students = Array.from(studentStatusMap.values()).filter((student) => student.left <= 0).length;
+    const unpaid_students = Array.from(studentStatusMap.values()).filter((student) => student.left > 0).length;
+    const partially_paid_students = Array.from(studentStatusMap.values()).filter(
+      (student) => student.paid > 0 && student.left > 0
+    ).length;
+    const collection_rate = total_expected > 0 ? Number(((total_paid / total_expected) * 100).toFixed(1)) : 0;
+
+    const recent_balances = balances.slice(0, 10).map((balance: any) => ({
+      id: balance.id,
+      student: balance.student.name,
+      class_name: balance.student.class?.class_name || 'N/A',
+      fee_type: balance.schoolFee.fee_type,
+      amount_expected: balance.schoolFee.amount,
+      amount_paid: balance.amount_paid,
+      amount_left: calculateAmountLeft(balance.schoolFee.amount, balance.amount_paid),
+      status: calculateFeeStatus(balance.schoolFee.amount, balance.amount_paid),
+      period: `${balance.schoolFee.term || 'No term'} ${balance.schoolFee.academic_year}`,
+      updated_at: balance.updated_at,
+    }));
+
     return NextResponse.json({
-      total_collected: collected._sum.amount || 0,
-      total_pending: pending._sum.amount || 0,
-      paid_students: paidCount.length,
-      unpaid_students: unpaidCount.length,
-      recent_payments: recentPayments.map((payment) => ({
-        id: payment.id,
-        student: payment.student.name,
-        class_name: payment.student.class?.class_name || 'N/A',
-        amount: payment.amount,
-        status: payment.status,
-        date: payment.paidAt || payment.created_at,
-        payment_method: payment.paymentMethod,
-      })),
+      total_expected,
+      total_paid,
+      total_pending,
+      paid_students,
+      unpaid_students,
+      partially_paid_students,
+      collection_rate,
+      recent_balances,
       school_name: school?.school_name || 'School',
-      currency: 'USD'
+      currency: 'GHS',
     });
   } catch (error) {
     console.error('Error calculating finance summary:', error);
-    return NextResponse.json({ error: 'Failed to generate report' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to generate finance summary' }, { status: 500 });
   }
 }

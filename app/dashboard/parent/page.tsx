@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { CalendarWidget } from '@/components/dashboard/calendar-widget';
 import { PARENT_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
+import { formatGhanaCedis } from '@/lib/currency';
 
 interface DashboardChild {
   id: string;
@@ -202,7 +203,7 @@ export default function ParentDashboard() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-[#646464] uppercase tracking-wider">Pending Fees</p>
-                      <h3 className="text-2xl font-bold text-[#212529]">{dashboard ? dashboard.stats.totalPendingFees.toFixed(2) : '0.00'}</h3>
+                      <h3 className="text-2xl font-bold text-[#212529]">{dashboard ? formatGhanaCedis(dashboard.stats.totalPendingFees) : formatGhanaCedis(0)}</h3>
                     </div>
                   </div>
                 </Card>
@@ -264,7 +265,7 @@ export default function ParentDashboard() {
                           <div className="text-center">
                             <p className="text-sm text-[#646464] mb-1">Fees</p>
                             <p className={`text-lg font-bold ${child.pendingFees > 0 ? 'text-[#ff0000]' : 'text-[#1d9d00]'}`}>
-                              {child.pendingFees > 0 ? child.pendingFees.toFixed(2) : 'Cleared'}
+                              {child.pendingFees > 0 ? formatGhanaCedis(child.pendingFees) : 'Cleared'}
                             </p>
                           </div>
                         </div>
@@ -365,7 +366,7 @@ export default function ParentDashboard() {
                     <CardContent>
                       <p className="text-amber-50 text-xs mb-3">
                         {dashboard && dashboard.stats.totalPendingFees > 0
-                          ? `You have ${dashboard.stats.totalPendingFees.toFixed(2)} in unpaid school fees.`
+                          ? `You have ${formatGhanaCedis(dashboard.stats.totalPendingFees)} in unpaid school fees.`
                           : 'There are no outstanding school fees at the moment.'}
                       </p>
                       <Link href="/dashboard/parent/fees">

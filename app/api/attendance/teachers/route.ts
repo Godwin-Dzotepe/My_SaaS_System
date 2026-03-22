@@ -1,6 +1,47 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/api-auth";
+
+export const GET = withAuth(async ({ req, session }) => {
+  try {
+    const { searchParams } = new URL(req.url);
+    const dateStr = searchParams.get("date");
+
+    if (!session.user.school_id) {
+      return NextResponse.json({ error: "No school ID" }, { status: 400 });
+    }
+
+    if (!dateStr) {
+      return NextResponse.json({ error: "Date is required" }, { status: 400 });
+    }
+
+    const attendanceDate = new Date(dateStr);
+    const startOfDay = new Date(attendanceDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(attendanceDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const records = await prisma.teacherAttendance.findMany({
+      where: {
+        school_id: session.user.school_id,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    });
+
+    const attendanceMap = records.reduce((acc: any, record) => {
+      acc[record.teacher_id] = record.status.toUpperCase();
+      return acc;
+    }, {});
+
+    return NextResponse.json({ attendance: attendanceMap });
+  } catch (error) {
+    console.error("Attendance fetch error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+});
 
 export const POST = withAuth(async ({ req, session }) => {
   try {

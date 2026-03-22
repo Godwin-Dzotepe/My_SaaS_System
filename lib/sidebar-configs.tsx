@@ -1,4 +1,4 @@
-import { 
+import {
   Users, 
   GraduationCap, 
   School, 
@@ -14,7 +14,8 @@ import {
   CheckSquare, // New icon
   XSquare,     // New icon
   CalendarDays, // New icon
-  ShieldCheck // Explicitly ensure ShieldCheck is imported
+  ShieldCheck,
+  ClipboardList
 } from 'lucide-react';
 import React from 'react';
 
@@ -24,6 +25,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { label: 'Attendance', href: '/dashboard/school-admin/attendance', icon: <CalendarDays className="w-5 h-5" /> },
   { label: 'Parents', href: '/dashboard/school-admin/parents', icon: <UserCircle className="w-5 h-5" /> },
   { label: 'Teachers', href: '/dashboard/school-admin/teachers', icon: <GraduationCap className="w-5 h-5" /> },{ label: 'Teacher Attendance', href: '/dashboard/school-admin/teacher-attendance', icon: <CalendarDays className="w-5 h-5" /> },
+  { label: 'Attendance Records', href: '/dashboard/school-admin/teacher-attendance/records', icon: <ClipboardList className="w-5 h-5" /> },
   { label: 'Secretaries', href: '/dashboard/school-admin/secretaries', icon: <Users className="w-5 h-5" /> },
   { label: 'Classes', href: '/dashboard/school-admin/classes', icon: <School className="w-5 h-5" /> },
   { label: 'Subjects', href: '/dashboard/school-admin/subjects', icon: <BookOpen className="w-5 h-5" /> },
@@ -51,6 +53,7 @@ export const TEACHER_SIDEBAR_ITEMS = [
   { label: 'Dashboard', href: '/dashboard/teacher', icon: <TrendingUp className="w-5 h-5" /> },
   { label: 'My Class', href: '/dashboard/teacher/class', icon: <Users className="w-5 h-5" /> },
   { label: 'Mark Attendance', href: '/dashboard/teacher/attendance/mark', icon: <CalendarDays className="w-5 h-5" /> },
+  { label: 'My Attendance', href: '/dashboard/teacher/attendance-records', icon: <ClipboardList className="w-5 h-5" /> },
   { label: 'View Attendance', href: '/dashboard/teacher/attendance/view', icon: <Calendar className="w-5 h-5" /> },
   { label: 'Present Students', href: '/dashboard/teacher/attendance/present', icon: <CheckSquare className="w-5 h-5" /> },
   { label: 'Absent Students', href: '/dashboard/teacher/attendance/absent', icon: <XSquare className="w-5 h-5" /> },

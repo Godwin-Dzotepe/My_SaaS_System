@@ -3,9 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
 import { ensureParentAccount } from '@/lib/parent-account';
+import { uploadImageToCloudinary } from '@/lib/cloudinary';
 
 const studentSchema = z.object({
   name: z.string().min(2),
@@ -107,26 +106,8 @@ async function parseStudentRequest(req: NextRequest) {
 }
 
 async function saveProfileImage(file: File) {
-  if (!file.type.startsWith('image/')) {
-    throw new Error('Profile picture must be an image file');
-  }
-
-  const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'students');
-  await mkdir(uploadsDir, { recursive: true });
-
-  const extension = path.extname(file.name) || '.jpg';
-  const safeBaseName = path
-    .basename(file.name, extension)
-    .replace(/[^a-zA-Z0-9-_]/g, '-')
-    .toLowerCase()
-    .slice(0, 40) || 'student-photo';
-  const fileName = `${Date.now()}-${safeBaseName}${extension.toLowerCase()}`;
-  const filePath = path.join(uploadsDir, fileName);
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  await writeFile(filePath, buffer);
-
-  return `/uploads/students/${fileName}`;
+  const upload = await uploadImageToCloudinary(file, 'my-school-saas/students');
+  return upload.url;
 }
 
 function getSupportedStudentCreateData(data: Record<string, unknown>) {
@@ -248,7 +229,13 @@ export async function POST(req: NextRequest) {
     const guardianUser = await ensureParentAccount({ name: guardian_name, phone: guardian_phone, schoolId: school_id, schoolName: schoolRecord.school_name });
 
     if (parent_name && parent_phone) {
-      parentUser = await ensureParentAccount({ name: parent_name, phone: parent_phone, schoolId: school_id, schoolName: schoolRecord.school_name });
+      parentUser = await ensureParentAccount({
+        name: parent_name,
+        phone: parent_phone,
+        email: parent_email,
+        schoolId: school_id,
+        schoolName: schoolRecord.school_name,
+      });
     }
 
     // 6. Create Student and link to Parent (if parent exists)

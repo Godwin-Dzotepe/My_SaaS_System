@@ -18,6 +18,7 @@ import {
   Download,
   Loader2,
 } from 'lucide-react';
+import { formatGhanaCedis } from '@/lib/currency';
 
 const sidebarItems = [
   { label: 'Dashboard', href: '/dashboard/finance-admin', icon: <TrendingUp className="w-5 h-5" /> },
@@ -65,14 +66,6 @@ const itemVariants = {
   },
 };
 
-function formatCurrency(amount: number, currency: string) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
-
 export default function FinanceAdminDashboard() {
   const [dashboard, setDashboard] = React.useState<FinanceDashboardData | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -98,8 +91,6 @@ export default function FinanceAdminDashboard() {
 
     fetchDashboard();
   }, []);
-
-  const currency = dashboard?.currency || 'USD';
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -144,13 +135,13 @@ export default function FinanceAdminDashboard() {
               >
                 <DashboardCard
                   title="Total Collected"
-                  value={formatCurrency(dashboard?.total_collected || 0, currency)}
+                  value={formatGhanaCedis(dashboard?.total_collected || 0)}
                   icon={<DollarSign className="w-5 h-5" />}
                   description="Confirmed payments"
                 />
                 <DashboardCard
                   title="Pending Amount"
-                  value={formatCurrency(dashboard?.total_pending || 0, currency)}
+                  value={formatGhanaCedis(dashboard?.total_pending || 0)}
                   icon={<Clock className="w-5 h-5" />}
                   description="Awaiting confirmation"
                 />
@@ -206,7 +197,7 @@ export default function FinanceAdminDashboard() {
                               >
                                 <td className="py-3 px-4 font-medium text-gray-900">{payment.student}</td>
                                 <td className="py-3 px-4 text-gray-600">{payment.class_name}</td>
-                                <td className="py-3 px-4 font-bold text-gray-900">{formatCurrency(payment.amount, currency)}</td>
+                                <td className="py-3 px-4 font-bold text-gray-900">{formatGhanaCedis(payment.amount)}</td>
                                 <td className="py-3 px-4 text-gray-600">{payment.payment_method.replace(/_/g, ' ')}</td>
                                 <td className="py-3 px-4">
                                   <Badge

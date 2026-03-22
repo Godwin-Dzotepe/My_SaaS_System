@@ -73,6 +73,8 @@ model School {
   students            Student[]
   subjects            Subject[]
   announcements       Announcement[]
+  messages            AppMessage[]
+  notifications       AppNotification[]
   events              Event[]
   schoolPaymentDetail SchoolPaymentDetail?
   gradingConfigs      GradingConfig[]
@@ -132,6 +134,9 @@ model User {
   // Relations for specific roles
   classes        Class[] // A teacher can manage multiple classes (or one)
   announcements  Announcement[] // Created by school admin
+  sentMessages   AppMessage[]   @relation("MessageSender")
+  receivedMessages AppMessage[] @relation("MessageRecipient")
+  notifications  AppNotification[]
   homework       Homework[]
   created_events Event[]        @relation("EventCreator")
   payments       Payment[]      @relation("ParentPayments")
@@ -405,4 +410,53 @@ model StudentFeeBalance {
   @@index([school_id, student_id])
   @@index([school_fee_id])
 }
+
+enum MessageAudience {
+  school_admin
+  teacher
+  parent
+  secretary
+  finance_admin
+}
+
+model AppMessage {
+  id               String          @id @default(uuid())
+  school_id        String?
+  school           School?         @relation(fields: [school_id], references: [id])
+  sender_id        String
+  sender           User            @relation("MessageSender", fields: [sender_id], references: [id])
+  recipient_id     String
+  recipient        User            @relation("MessageRecipient", fields: [recipient_id], references: [id])
+  sender_role      Role
+  recipient_role   Role
+  title            String
+  body             String
+  school_name      String?
+  notifications    AppNotification[]
+  is_edited        Boolean         @default(false)
+  edited_at        DateTime?
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
+}
+
+model AppNotification {
+  id               String          @id @default(uuid())
+  user_id          String
+  user             User            @relation(fields: [user_id], references: [id])
+  school_id        String?
+  school           School?         @relation(fields: [school_id], references: [id])
+  message_id       String?
+  message          AppMessage?     @relation(fields: [message_id], references: [id])
+  title            String
+  body             String
+  source_role      Role?
+  source_name      String?
+  school_name      String?
+  is_read          Boolean         @default(false)
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
+
+  @@index([user_id, is_read, created_at])
+}
+
 

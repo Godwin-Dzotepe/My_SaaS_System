@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withAuth } from '@/lib/api-auth';
 import { calculateAmountLeft, ensureStudentFeeBalancesForSchool, getStudentFeeBalanceModel } from '@/lib/fee-balances';
+import { formatGhanaCedis } from '@/lib/currency';
 
 function toPercent(value: number) {
   return `${value.toFixed(1)}%`;
@@ -258,7 +259,7 @@ export const GET = withAuth(
               {
                 id: 'pending-fees',
                 title: 'Outstanding Fees',
-                message: `You have ${totalPendingFees.toFixed(2)} in unpaid school fees.`,
+                message: `You have ${formatGhanaCedis(totalPendingFees)} in unpaid school fees.`,
                 time: 'Action needed',
                 type: 'warning' as const,
                 sortDate: new Date(),
