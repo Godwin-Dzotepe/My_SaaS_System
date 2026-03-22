@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const payment = await prisma.payment.create({
       data: {
         student_id,
-        parent_id: user.userId,
+        parent_id: user.id,
         school_id: student.school_id,
         amount,
         paymentMethod,
@@ -60,13 +60,13 @@ export async function GET(req: NextRequest) {
     if (auth instanceof NextResponse) return auth;
     const { user } = auth;
 
-    let where: any = {};
+    const where: any = {};
     
     // Parents can only see their own payments
     if (user.role === 'parent') {
-      where.parent_id = user.userId;
+      where.parent_id = user.id;
     } else if (user.role === 'school_admin' || user.role === 'secretary' || user.role === 'finance_admin') {
-      where.school_id = user.schoolId;
+      where.school_id = user.school_id;
     }
     // Super admin can see all
 

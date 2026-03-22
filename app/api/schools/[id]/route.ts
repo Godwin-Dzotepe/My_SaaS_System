@@ -130,8 +130,99 @@ export async function DELETE(
       return NextResponse.json({ error: 'School not found' }, { status: 404 });
     }
 
-    await prisma.school.delete({
-      where: { id: schoolId }
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete Attendance records
+      await tx.attendance.deleteMany({
+        where: { student: { school_id: schoolId } }
+      });
+
+      // 2. Delete Scores
+      await tx.score.deleteMany({
+        where: { student: { school_id: schoolId } }
+      });
+
+      // 3. Delete Completed Student records
+      await tx.completedStudent.deleteMany({
+        where: { student: { school_id: schoolId } }
+      });
+
+      // 4. Delete Payments
+      await tx.payment.deleteMany({
+        where: { school_id: schoolId }
+      });
+
+      // 5. Delete Homework
+      await tx.homework.deleteMany({
+        where: { class: { school_id: schoolId } }
+      });
+
+      // 6. Delete Students
+      await tx.student.deleteMany({
+        where: { school_id: schoolId }
+      });
+
+      // 7. Delete Events
+      await tx.event.deleteMany({
+        where: { school_id: schoolId }
+      });
+
+      // 8. Delete Announcements
+      // Delete announcements for the school, and any other announcements created by the school's users
+      await tx.announcement.deleteMany({
+        where: {
+          OR: [
+            { school_id: schoolId },
+            { creator: { school_id: schoolId } }
+          ]
+        }
+      });
+
+      // 9. Delete SchoolFees
+      await tx.schoolFee.deleteMany({
+        where: { school_id: schoolId }
+      });
+
+      // 10. Delete GradingConfigs
+      await tx.gradingConfig.deleteMany({
+        where: { school_id: schoolId }
+      });
+
+      // 11. Delete SchoolPaymentDetails
+      await tx.schoolPaymentDetail.deleteMany({
+        where: { school_id: schoolId }
+      });
+
+      // 12. Delete Classes
+      // Need to disconnect teachers first or just delete them. 
+      // Subjects might be linked to teachers in TeacherSubjects relation. 
+      // Wait, we need to clear subjects first.
+      await tx.subject.deleteMany({
+        where: { school_id: schoolId }
+      });
+
+      await tx.class.deleteMany({
+        where: { school_id: schoolId }
+      });
+
+      // 13. Users
+      // Find all users associated strictly with this school
+      await tx.user.deleteMany({
+        where: { 
+          school_id: schoolId,
+          role: { not: 'parent' }
+        }
+      });
+      
+      // Unlink remaining users (like parents, or super_admins if they somehow have this school_id)
+      await tx.user.updateMany({
+        where: { school_id: schoolId },
+        data: { school_id: null }
+      });
+
+      // 14. Finally, delete the school
+      await tx.school.delete({
+        where: { id: schoolId }
+      });
     });
 
     return NextResponse.json({ message: 'School deleted successfully' });

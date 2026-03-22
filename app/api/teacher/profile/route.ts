@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const profile = await prisma.user.findUnique({
-      where: { id: user.userId },
+      where: { id: user.id },
       select: {
         id: true,
         name: true,
@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const updatedUser = await prisma.user.update({
-      where: { id: user.userId },
+      where: { id: user.id },
       data: validation.data,
     });
 

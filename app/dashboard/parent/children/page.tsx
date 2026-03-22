@@ -20,15 +20,15 @@ export default function ParentChildrenPage() {
 
   React.useEffect(() => {
     const fetchChildren = async () => {
-      const userStr = localStorage.getItem('user');
-      if (!userStr) return;
-      const user = JSON.parse(userStr);
+      const meRes = await fetch('/api/auth/me');
+      const meData = await meRes.json();
+      if (!meData.user) return;
+      const user = meData.user;
       setUserName(user.name);
 
       try {
-        const token = localStorage.getItem('token');
         const res = await fetch(`/api/parent/children?phone=${user.phone}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
+          headers: {}
         });
         const data = await res.json();
         if (Array.isArray(data)) setChildren(data);

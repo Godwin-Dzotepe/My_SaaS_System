@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
 import bcrypt from 'bcrypt';
 import { generateRandomPassword } from '@/lib/password-utils';
 import { sendSMS } from '@/lib/sms-service';
+import { mkdir, writeFile } from 'fs/promises';
+import path from 'path';
 
 const studentSchema = z.object({
   name: z.string().min(2),
@@ -15,7 +18,177 @@ const studentSchema = z.object({
   parent_name: z.string().min(2).optional(),
   parent_email: z.string().email().optional(),
   parent_relation: z.string().optional(),
+  date_of_birth: z.string().optional().refine((value) => !value || !Number.isNaN(Date.parse(value)), 'Invalid date of birth'),
+  gender: z.string().optional(),
+  nationality: z.string().optional(),
+  admission_date: z.string().optional().refine((value) => !value || !Number.isNaN(Date.parse(value)), 'Invalid admission date'),
+  previous_school: z.string().optional(),
+  residential_address: z.string().optional(),
+  digital_address: z.string().optional(),
+  father_name: z.string().optional(),
+  father_phone: z.string().min(10).optional(),
+  father_profession: z.string().optional(),
+  father_status: z.string().optional(),
+  father_residential_address: z.string().optional(),
+  father_digital_address: z.string().optional(),
+  mother_name: z.string().optional(),
+  mother_phone: z.string().min(10).optional(),
+  mother_profession: z.string().optional(),
+  mother_status: z.string().optional(),
+  mother_residential_address: z.string().optional(),
+  mother_digital_address: z.string().optional(),
+  guardian_name: z.string().optional(),
+  guardian_phone: z.string().min(10).optional(),
+  guardian_profession: z.string().optional(),
+  guardian_residential_address: z.string().optional(),
+  guardian_digital_address: z.string().optional(),
+  emergency_contact_name: z.string().optional(),
+  emergency_contact_phone: z.string().optional(),
+  medical_notes: z.string().optional(),
 });
+
+function getOptionalString(value: FormDataEntryValue | null | undefined) {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+async function parseStudentRequest(req: NextRequest) {
+  const contentType = req.headers.get('content-type') || '';
+
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await req.formData();
+    const imageFile = formData.get('profile_image');
+
+    return {
+      data: {
+        name: getOptionalString(formData.get('name')),
+        student_number: getOptionalString(formData.get('student_number')),
+        class_id: getOptionalString(formData.get('class_id')),
+        school_id: getOptionalString(formData.get('school_id')),
+        parent_phone: getOptionalString(formData.get('parent_phone')),
+        parent_name: getOptionalString(formData.get('parent_name')),
+        parent_email: getOptionalString(formData.get('parent_email')),
+        parent_relation: getOptionalString(formData.get('parent_relation')),
+        date_of_birth: getOptionalString(formData.get('date_of_birth')),
+        gender: getOptionalString(formData.get('gender')),
+        nationality: getOptionalString(formData.get('nationality')),
+        admission_date: getOptionalString(formData.get('admission_date')),
+        previous_school: getOptionalString(formData.get('previous_school')),
+        residential_address: getOptionalString(formData.get('residential_address')),
+        digital_address: getOptionalString(formData.get('digital_address')),
+        father_name: getOptionalString(formData.get('father_name')),
+        father_phone: getOptionalString(formData.get('father_phone')),
+        father_profession: getOptionalString(formData.get('father_profession')),
+        father_status: getOptionalString(formData.get('father_status')),
+        father_residential_address: getOptionalString(formData.get('father_residential_address')),
+        father_digital_address: getOptionalString(formData.get('father_digital_address')),
+        mother_name: getOptionalString(formData.get('mother_name')),
+        mother_phone: getOptionalString(formData.get('mother_phone')),
+        mother_profession: getOptionalString(formData.get('mother_profession')),
+        mother_status: getOptionalString(formData.get('mother_status')),
+        mother_residential_address: getOptionalString(formData.get('mother_residential_address')),
+        mother_digital_address: getOptionalString(formData.get('mother_digital_address')),
+        guardian_name: getOptionalString(formData.get('guardian_name')),
+        guardian_phone: getOptionalString(formData.get('guardian_phone')),
+        guardian_profession: getOptionalString(formData.get('guardian_profession')),
+        guardian_residential_address: getOptionalString(formData.get('guardian_residential_address')),
+        guardian_digital_address: getOptionalString(formData.get('guardian_digital_address')),
+        emergency_contact_name: getOptionalString(formData.get('emergency_contact_name')),
+        emergency_contact_phone: getOptionalString(formData.get('emergency_contact_phone')),
+        medical_notes: getOptionalString(formData.get('medical_notes')),
+      },
+      imageFile: imageFile instanceof File && imageFile.size > 0 ? imageFile : null,
+    };
+  }
+
+  return {
+    data: await req.json(),
+    imageFile: null,
+  };
+}
+
+async function saveProfileImage(file: File) {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Profile picture must be an image file');
+  }
+
+  const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'students');
+  await mkdir(uploadsDir, { recursive: true });
+
+  const extension = path.extname(file.name) || '.jpg';
+  const safeBaseName = path
+    .basename(file.name, extension)
+    .replace(/[^a-zA-Z0-9-_]/g, '-')
+    .toLowerCase()
+    .slice(0, 40) || 'student-photo';
+  const fileName = `${Date.now()}-${safeBaseName}${extension.toLowerCase()}`;
+  const filePath = path.join(uploadsDir, fileName);
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  await writeFile(filePath, buffer);
+
+  return `/uploads/students/${fileName}`;
+}
+
+function getSupportedStudentCreateData(data: Record<string, unknown>) {
+  const studentModel = Prisma.dmmf.datamodel.models.find((model) => model.name === 'Student');
+  const supportedFields = new Set(
+    (studentModel?.fields || []).map((field) => field.name)
+  );
+
+  const filteredEntries = Object.entries(data).filter(([key]) => supportedFields.has(key));
+  const unsupportedFields = Object.keys(data).filter((key) => !supportedFields.has(key));
+
+  return {
+    data: Object.fromEntries(filteredEntries),
+    unsupportedFields,
+  };
+}
+
+async function ensureParentAccount({
+  name,
+  phone,
+  schoolId,
+}: {
+  name?: string;
+  phone?: string;
+  schoolId: string;
+}) {
+  if (!name || !phone) return null;
+
+  let parentUser = await prisma.user.findFirst({
+    where: { phone },
+  });
+
+  if (!parentUser) {
+    const generatedPassword = generateRandomPassword();
+    const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+
+    parentUser = await prisma.user.create({
+      data: {
+        name,
+        phone,
+        password: hashedPassword,
+        role: 'parent',
+        school_id: schoolId,
+      },
+    });
+
+    try {
+      await sendSMS({
+        phone,
+        message: `Welcome! Your parent account has been created. Login phone: ${phone}. Password: ${generatedPassword}`,
+      });
+    } catch (smsError) {
+      console.warn('SMS sending failed (non-blocking):', smsError);
+    }
+  } else if (parentUser.role !== 'parent') {
+    throw new Error(`The phone number ${phone} is already used by a different user role`);
+  }
+
+  return parentUser;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,11 +197,11 @@ export async function POST(req: NextRequest) {
     if (auth instanceof NextResponse) return auth;
     const { user } = auth;
 
-    const body = await req.json();
+    const { data: body, imageFile } = await parseStudentRequest(req);
     const validation = studentSchema.safeParse(body);
 
     if (!validation.success) {
-      return NextResponse.json({ error: 'Invalid input', details: validation.error.errors }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid input', details: validation.error.issues }, { status: 400 });
     }
 
     const {
@@ -39,7 +212,34 @@ export async function POST(req: NextRequest) {
       parent_phone,
       parent_name,
       parent_email,
-      parent_relation
+      parent_relation,
+      date_of_birth,
+      gender,
+      nationality,
+      admission_date,
+      previous_school,
+      residential_address,
+      digital_address,
+      father_name,
+      father_phone,
+      father_profession,
+      father_status,
+      father_residential_address,
+      father_digital_address,
+      mother_name,
+      mother_phone,
+      mother_profession,
+      mother_status,
+      mother_residential_address,
+      mother_digital_address,
+      guardian_name,
+      guardian_phone,
+      guardian_profession,
+      guardian_residential_address,
+      guardian_digital_address,
+      emergency_contact_name,
+      emergency_contact_phone,
+      medical_notes,
     } = validation.data;
 
     // 2. Check user belongs to school
@@ -70,64 +270,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Handle Parent Account (OPTIONAL) - AUTO PASSWORD + SMS
+    let profileImagePath: string | null = null;
+    if (imageFile) {
+      profileImagePath = await saveProfileImage(imageFile);
+    }
+
+    // 5. Handle Parent Accounts (OPTIONAL) - AUTO PASSWORD + SMS
     let parentUser: any = null;
-    let generatedPassword: string | null = null;
+    const fatherUser = await ensureParentAccount({ name: father_name, phone: father_phone, schoolId: school_id });
+    const motherUser = await ensureParentAccount({ name: mother_name, phone: mother_phone, schoolId: school_id });
+    const guardianUser = await ensureParentAccount({ name: guardian_name, phone: guardian_phone, schoolId: school_id });
 
-    // Only process parent if parent_name AND parent_phone are provided
     if (parent_name && parent_phone) {
-      // Check if parent already exists by phone
-      parentUser = await prisma.user.findFirst({
-        where: { phone: parent_phone }
-      });
-
-      // If parent doesn't exist, create one with auto-generated password
-      if (!parentUser) {
-        // Generate random password for new parent
-        generatedPassword = generateRandomPassword();
-        const hashedPassword = await bcrypt.hash(generatedPassword, 10);
-
-        try {
-          parentUser = await prisma.user.create({
-            data: {
-              name: parent_name,
-              phone: parent_phone,
-              email: parent_email || undefined,
-              password: hashedPassword,
-              role: 'parent',
-              school_id: school_id
-            }
-          });
-
-          // Send SMS with auto-generated password
-          try {
-            await sendSMS({
-              phone: parent_phone,
-              message: `Welcome! Your account has been created. Password: ${generatedPassword}. Use this to login at the parent portal.`
-            });
-          } catch (smsError) {
-            console.warn('SMS sending failed (non-blocking):', smsError);
-            // Don't fail the request if SMS fails - log and continue
-          }
-        } catch (err: any) {
-          // Handle unique constraint errors
-          if (err.code === 'P2002') {
-            return NextResponse.json(
-              { error: 'Parent with this phone/email already exists' },
-              { status: 400 }
-            );
-          }
-          throw err;
-        }
-      } else {
-        // Reusing existing parent - verify it's a parent role
-        if (parentUser.role !== 'parent') {
-          return NextResponse.json(
-            { error: 'This phone is registered with a different role' },
-            { status: 400 }
-          );
-        }
-      }
+      parentUser = await ensureParentAccount({ name: parent_name, phone: parent_phone, schoolId: school_id });
     }
 
     // 6. Create Student and link to Parent (if parent exists)
@@ -139,8 +294,9 @@ export async function POST(req: NextRequest) {
     };
 
     // Link parent if one was created/found
-    if (parentUser) {
-      studentData.parent_id = parentUser.id;
+    const primaryParentUser = fatherUser || motherUser || guardianUser || parentUser;
+    if (primaryParentUser) {
+      studentData.parent_id = primaryParentUser.id;
     }
 
     // Store parent contact info
@@ -156,13 +312,104 @@ export async function POST(req: NextRequest) {
       studentData.parent_relation = parent_relation;
     }
 
+    if (father_name) studentData.father_name = father_name;
+    if (father_phone) studentData.father_phone = father_phone;
+    if (father_profession) studentData.father_profession = father_profession;
+    if (father_status) studentData.father_status = father_status;
+    if (father_residential_address) studentData.father_residential_address = father_residential_address;
+    if (father_digital_address) studentData.father_digital_address = father_digital_address;
+
+    if (mother_name) studentData.mother_name = mother_name;
+    if (mother_phone) studentData.mother_phone = mother_phone;
+    if (mother_profession) studentData.mother_profession = mother_profession;
+    if (mother_status) studentData.mother_status = mother_status;
+    if (mother_residential_address) studentData.mother_residential_address = mother_residential_address;
+    if (mother_digital_address) studentData.mother_digital_address = mother_digital_address;
+
+    if (guardian_name) studentData.guardian_name = guardian_name;
+    if (guardian_phone) studentData.guardian_phone = guardian_phone;
+    if (guardian_profession) studentData.guardian_profession = guardian_profession;
+    if (guardian_residential_address) studentData.guardian_residential_address = guardian_residential_address;
+    if (guardian_digital_address) studentData.guardian_digital_address = guardian_digital_address;
+
+    if (!studentData.parent_name) {
+      studentData.parent_name = father_name || mother_name || guardian_name;
+    }
+
+    if (!studentData.parent_phone) {
+      studentData.parent_phone = father_phone || mother_phone || guardian_phone;
+    }
+
+    if (!studentData.parent_relation) {
+      studentData.parent_relation = father_name
+        ? 'Father'
+        : mother_name
+          ? 'Mother'
+          : guardian_name
+            ? 'Guardian'
+            : undefined;
+    }
+
     // Only include optional fields if they have values
     if (student_number) {
       studentData.student_number = student_number;
     }
 
+    if (date_of_birth) {
+      studentData.date_of_birth = new Date(date_of_birth);
+    }
+
+    if (gender) {
+      studentData.gender = gender;
+    }
+
+    if (nationality) {
+      studentData.nationality = nationality;
+    }
+
+    if (admission_date) {
+      studentData.admission_date = new Date(admission_date);
+    }
+
+    if (previous_school) {
+      studentData.previous_school = previous_school;
+    }
+
+    if (residential_address) {
+      studentData.residential_address = residential_address;
+    }
+
+    if (digital_address) {
+      studentData.digital_address = digital_address;
+    }
+
+    if (emergency_contact_name) {
+      studentData.emergency_contact_name = emergency_contact_name;
+    }
+
+    if (emergency_contact_phone) {
+      studentData.emergency_contact_phone = emergency_contact_phone;
+    }
+
+    if (medical_notes) {
+      studentData.medical_notes = medical_notes;
+    }
+
+    if (profileImagePath) {
+      studentData.profile_image = profileImagePath;
+    }
+
+    const { data: supportedStudentData, unsupportedFields } = getSupportedStudentCreateData(studentData);
+
+    if (unsupportedFields.length > 0) {
+      console.warn(
+        '[students.create] Skipping unsupported Student fields until Prisma client/database are updated:',
+        unsupportedFields
+      );
+    }
+
     const newStudent = await prisma.student.create({
-      data: studentData,
+      data: supportedStudentData,
       include: {
         parent: {
           select: {
@@ -190,10 +437,26 @@ export async function POST(req: NextRequest) {
       response.parentLinked = false;
     }
 
+    response.parentAccounts = [fatherUser, motherUser, guardianUser, parentUser]
+      .filter(Boolean)
+      .map((account) => ({
+        id: account.id,
+        name: account.name,
+        phone: account.phone,
+      }));
+
+    if (unsupportedFields.length > 0) {
+      response.warning = 'Some new student profile fields were skipped because the Prisma client/database schema is not fully updated yet.';
+      response.skippedFields = unsupportedFields;
+    }
+
     return NextResponse.json(response, { status: 201 });
 
   } catch (error) {
     console.error('Error creating student:', error);
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return NextResponse.json({ error: 'Failed to register student' }, { status: 500 });
   }
 }

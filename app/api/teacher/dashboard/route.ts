@@ -8,14 +8,14 @@ export async function GET(req: NextRequest) {
     if (auth instanceof NextResponse) return auth;
     const { user } = auth;
 
-    if (!user.schoolId) {
+    if (!user.school_id) {
         return NextResponse.json({ error: 'School ID missing from token' }, { status: 400 });
     }
 
     const teacherClass = await prisma.class.findFirst({
       where: {
-        teacher_id: user.userId,
-        school_id: user.schoolId
+        teacher_id: user.id,
+        school_id: user.school_id
       },
       include: {
         students: {

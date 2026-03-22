@@ -51,19 +51,15 @@ export default function FinanceOverviewPage() {
     const fetchSummary = async () => {
       try {
         // Get school ID from user session
-        const userStr = localStorage.getItem('user');
-        const token = localStorage.getItem('token');
         let schoolId = '';
-        
-        if (userStr) {
-          try {
-            const user = JSON.parse(userStr);
-            schoolId = user.school_id || '';
-          } catch (e) {
-            console.error('Error parsing user:', e);
-          }
+        try {
+          const res = await fetch('/api/auth/me');
+          const data = await res.json();
+          schoolId = data.user?.school_id || '';
+        } catch (e) {
+          console.error(e);
         }
-        
+
         if (!schoolId) {
           console.error('No school_id found in user session');
           setLoading(false);
@@ -71,7 +67,7 @@ export default function FinanceOverviewPage() {
         }
         
         const response = await fetch(`/api/finance/summary?school_id=${schoolId}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
+          headers: {}
         }); 
         if (response.ok) {
           const data = await response.json();

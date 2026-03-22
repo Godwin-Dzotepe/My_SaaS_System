@@ -1,52 +1,63 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
+import { withAuth } from '@/lib/api-auth';
 
-const querySchema = z.object({
-  phone: z.string().min(10), // Parent's login phone number
-});
+// GET /api/parent/children - Fetches all children for the authenticated parent
+export const GET = withAuth(
+  async ({ session }) => {
+    try {
+      if (!session.user.id) {
+        return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+      }
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const phone = searchParams.get('phone');
+      const parentAccessFilters = [
+        { parent_id: session.user.id },
+        ...(session.user.phone
+          ? [
+              { father_phone: session.user.phone },
+              { mother_phone: session.user.phone },
+              { guardian_phone: session.user.phone },
+              { parent_phone: session.user.phone },
+            ]
+          : []),
+      ];
 
-  const validation = querySchema.safeParse({ phone });
-
-  if (!validation.success) {
-      return NextResponse.json({ error: 'Missing or invalid phone number' }, { status: 400 });
-  }
-
-  // TODO: Verify the token matches the phone number (Auth check)
-
-  try {
-    const children = await prisma.student.findMany({
+      const children = await prisma.student.findMany({
         where: {
-            parent_phone: validation.data.phone,
-            status: 'active'
+          OR: parentAccessFilters,
+          status: 'active',
         },
         include: {
-            school: {
-                select: {
-                    school_name: true
-                }
+          school: {
+            select: {
+              school_name: true,
             },
-            class: {
-                select: {
-                    class_name: true
-                }
+          },
+          class: {
+            select: {
+              class_name: true,
             },
-            // Optionally include latest scores or attendance summary
-            scores: {
-                take: 5,
-                orderBy: { created_at: 'desc' }
-            }
+          },
+        },
+        orderBy: {
+            name: 'asc'
         }
-    });
+      });
 
-    return NextResponse.json(children);
+      if (!children) {
+        return NextResponse.json([]);
+      }
 
-  } catch (error) {
-    console.error('Error fetching parent children:', error);
-    return NextResponse.json({ error: 'Failed to fetch children' }, { status: 500 });
+      return NextResponse.json(children);
+    } catch (error) {
+      console.error('Error fetching parent children:', error);
+      return NextResponse.json(
+        { error: 'Failed to fetch children.' },
+        { status: 500 }
+      );
+    }
+  },
+  {
+    roles: ['parent'],
   }
-}
+);

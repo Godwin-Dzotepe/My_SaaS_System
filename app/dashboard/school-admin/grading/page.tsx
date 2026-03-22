@@ -54,20 +54,26 @@ export default function GradingConfigurationPage() {
   const [schoolId, setSchoolId] = useState('');
 
   useEffect(() => {
-    // Get school ID from user
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        if (user.school_id) {
-          setSchoolId(user.school_id);
-          loadGradingConfig(user.school_id);
+    // Get school ID from user session
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(d => {
+        console.log('API Auth Me Response:', d); // Log the full response
+        const sId = d.user?.school_id || d.school_id; // Access school_id directly from the response as per app/api/auth/me/route.ts
+        console.log('Extracted School ID:', sId); // Log the extracted school_id
+
+        if (sId) {
+          setSchoolId(sId);
+          loadGradingConfig(sId);
+        } else {
+          alert('Could not retrieve school ID for your account. Please ensure you are logged in as a school administrator and your account is assigned to a school.');
+          setLoading(false); // If no schoolId, we are done loading but no config can be loaded
         }
-      } catch (e) {
-        console.error('Error parsing user', e);
+      }).catch(e => {
+        console.error('Error fetching user school ID:', e);
+        alert('Error fetching user school ID. Please check your network connection and try again.');
         setLoading(false);
-      }
-    }
+      });
   }, []);
 
   const loadGradingConfig = async (sId: string) => {
@@ -120,18 +126,37 @@ export default function GradingConfigurationPage() {
   };
 
   const handleSave = async () => {
-    if (!schoolId) return;
+    if (!schoolId) {
+      alert('School ID not available. Please refresh the page.');
+      return;
+    }
     
     setSaving(true);
+    let allSucceeded = true;
     try {
-      const token = localStorage.getItem('token');
+      // Clear existing grading configs for this school
+      // This is a simpler approach than updating individual grades and handling deletions
+      const deleteRes = await fetch(`/api/grading?school_id=${schoolId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!deleteRes.ok) {
+        const errorData = await deleteRes.json();
+        const errorMessage = errorData.error || 'Failed to clear existing grading configurations.';
+        alert(`Error clearing old grades: ${errorMessage}`);
+        allSucceeded = false;
+        return;
+      }
+
       // Save each grade config
       for (const grade of gradeRanges) {
-        await fetch('/api/grading', {
+        const response = await fetch('/api/grading', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          headers: {
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             school_id: schoolId,
@@ -141,13 +166,31 @@ export default function GradingConfigurationPage() {
             remark: grade.remark
           })
         });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          const errorMessage = errorData.error || 'Failed to save a grade range.';
+          alert(`Error saving grade ${grade.grade}: ${errorMessage}`);
+          allSucceeded = false;
+          // Optionally, break the loop if one fails to prevent further issues
+          break;
+        }
       }
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+
+      if (allSucceeded) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      }
     } catch (error) {
       console.error('Error saving grading config:', error);
+      alert('An unexpected error occurred while saving grading configurations.');
+      allSucceeded = false;
     } finally {
       setSaving(false);
+      if (allSucceeded) {
+        // Reload configs to ensure UI reflects saved state, especially new IDs from DB
+        loadGradingConfig(schoolId);
+      }
     }
   };
 
@@ -229,19 +272,18 @@ export default function GradingConfigurationPage() {
                           <div className="col-span-2">
                             <Input 
                               type="number" 
-                              value={range.minScore} 
+                              value={isNaN(range.minScore) ? '' : range.minScore} 
                               onChange={(e) => updateRange(range.id, 'minScore', parseInt(e.target.value))}
                               placeholder="0"
                             />
                           </div>
                           <div className="col-span-2">
-                            <Input 
-                              type="number" 
-                              value={range.maxScore} 
+                            <Input
+                              type="number"
+                              value={isNaN(range.maxScore) ? '' : range.maxScore}
                               onChange={(e) => updateRange(range.id, 'maxScore', parseInt(e.target.value))}
                               placeholder="100"
-                            />
-                          </div>
+                            />                          </div>
                           <div className="col-span-4">
                             <Input 
                               value={range.remark} 
@@ -287,7 +329,7 @@ export default function GradingConfigurationPage() {
                     </div>
                     <div className="p-4 border border-dashed border-gray-200 rounded-lg">
                       <p className="text-xs text-gray-500 leading-relaxed italic">
-                        "Grades provide a standardized way to communicate student achievement to parents and educational authorities."
+                        &quot;Grades provide a standardized way to communicate student achievement to parents and educational authorities.&quot;
                       </p>
                     </div>
                   </CardContent>
@@ -330,3 +372,4 @@ export default function GradingConfigurationPage() {
     </div>
   );
 }
+

@@ -26,11 +26,81 @@ export async function GET(
       where: { id: studentId },
       include: {
         class: {
+          include: {
+            teacher: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+              },
+            },
+            schoolFees: {
+              where: {
+                is_active: true,
+              },
+              orderBy: [
+                { academic_year: 'desc' },
+                { term: 'desc' },
+                { due_date: 'asc' },
+              ],
+            },
+          },
+        },
+        parent: {
           select: {
             id: true,
-            class_name: true,
-          }
-        }
+            name: true,
+            phone: true,
+            email: true,
+            image: true,
+            created_at: true,
+          },
+        },
+        school: {
+          select: {
+            id: true,
+            school_name: true,
+            address: true,
+            phone: true,
+          },
+        },
+        scores: {
+          include: {
+            subject: {
+              select: {
+                id: true,
+                subject_name: true,
+              },
+            },
+          },
+          orderBy: [
+            { academic_year: 'desc' },
+            { term: 'desc' },
+            { created_at: 'desc' },
+          ],
+        },
+        attendance: {
+          orderBy: {
+            date: 'desc',
+          },
+        },
+        payments: {
+          include: {
+            parent: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+        },
+        completed_records: true,
       }
     });
 

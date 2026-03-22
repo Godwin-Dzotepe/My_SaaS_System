@@ -22,7 +22,7 @@ const publicPaths = [
   '/api/auth/parent-first-login',
 ];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public paths

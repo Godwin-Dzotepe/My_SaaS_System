@@ -1,6 +1,10 @@
 /**
  * SMS Service - Handles SMS sending for OTP and notifications
  * 
+ * SECURITY: SMS failures in OTP flow should return errors to prevent
+ * account enumeration. Non-critical SMS (welcome messages) should not
+ * break the main flow.
+ * 
  * IMPORTANT: Add your SMS provider credentials to .env
  * Supported: Twilio, AWS SNS, or any HTTP-based SMS API
  */
@@ -10,24 +14,67 @@ interface SendSMSParams {
   message: string;
 }
 
+interface SMSResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}
+
 /**
  * Generate a random OTP (6 digits)
+ * Uses crypto-safe random number generation
  */
 export function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  // Use crypto-safe random numbers
+  const array = new Uint32Array(1);
+  crypto.getRandomValues(array);
+  const otp = (array[0] % 900000) + 100000;
+  return otp.toString();
+}
+
+/**
+ * Hash OTP using bcrypt for secure storage
+ * 
+ * @param otp - Plain text OTP
+ * @returns Hashed OTP
+ */
+export async function hashOTP(otp: string): Promise<string> {
+  const bcrypt = await import('bcryptjs');
+  // Use cost factor of 10 for good security/performance balance
+  return bcrypt.hash(otp, 10);
+}
+
+/**
+ * Verify OTP against hashed value
+ * 
+ * @param otp - Plain text OTP to verify
+ * @param hashedOTP - Stored hashed OTP
+ * @returns True if OTP matches
+ */
+export async function verifyOTP(otp: string, hashedOTP: string): Promise<boolean> {
+  const bcrypt = await import('bcryptjs');
+  return bcrypt.compare(otp, hashedOTP);
 }
 
 /**
  * Send SMS via configured provider
  * 
- * MOCK IMPLEMENTATION - Replace with your actual SMS provider
+ * CRITICAL: For OTP SMS, failure should return error to the caller
+ * so they can handle it appropriately (e.g., retry or show error).
+ * 
+ * @param params - Phone number and message
+ * @returns SMS result with success status and messageId/error
  */
-export async function sendSMS({ phone, message }: SendSMSParams): Promise<{
-  success: boolean;
-  messageId?: string;
-  error?: string;
-}> {
+export async function sendSMS({ phone, message }: SendSMSParams): Promise<SMSResult> {
   try {
+    // Validate phone number format
+    if (!phone || phone.length < 10) {
+      return {
+        success: false,
+        error: 'Invalid phone number format'
+      };
+    }
+
     // OPTION 1: Twilio (uncomment and configure if using)
     /*
     const twilio = require('twilio');
@@ -109,29 +156,72 @@ export async function sendSMS({ phone, message }: SendSMSParams): Promise<{
       };
     }
 
-    // Production fallback
+    // Production fallback - Return error for critical flows
     console.error('❌ SMS service not configured. Please set up an SMS provider.');
     return {
       success: false,
-      error: 'SMS service not configured'
+      error: 'SMS service not configured. Please contact support.'
     };
 
   } catch (error) {
     console.error('Error sending SMS:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error sending SMS'
     };
   }
 }
 
 /**
  * Send OTP SMS to parent
+ * 
+ * CRITICAL: This should return error if SMS fails, as OTP is a critical
+ * authentication flow. The caller should handle failures appropriately.
+ * 
+ * @param phone - Recipient phone number
+ * @param otp - OTP to send
+ * @returns SMS result
  */
-export async function sendOTPSMS(phone: string, otp: string): Promise<{
-  success: boolean;
-  error?: string;
-}> {
+export async function sendOTPSMS(phone: string, otp: string): Promise<SMSResult> {
   const message = `Your School Management System login code is: ${otp}. Valid for 10 minutes. Do not share this code.`;
   return sendSMS({ phone, message });
+}
+
+/**
+ * Send welcome SMS (non-critical)
+ * 
+ * This should NOT break the main flow if it fails - it's just a notification.
+ * 
+ * @param phone - Recipient phone number
+ * @param schoolName - School name for personalization
+ * @returns SMS result (caller should not throw on failure)
+ */
+export async function sendWelcomeSMS(phone: string, schoolName: string): Promise<SMSResult> {
+  const message = `Welcome to ${schoolName} Parent Portal! Your account has been set up. Contact the school for login assistance.`;
+  
+  try {
+    return await sendSMS({ phone, message });
+  } catch (error) {
+    // Log but don't throw - welcome SMS is not critical
+    console.error('[SMS] Welcome SMS failed:', error);
+    return { success: false, error: 'SMS send failed (non-critical)' };
+  }
+}
+
+/**
+ * Send password notification SMS (non-critical)
+ * 
+ * @param phone - Recipient phone number
+ * @param schoolName - School name for personalization
+ * @returns SMS result
+ */
+export async function sendPasswordSMS(phone: string, password: string, schoolName: string): Promise<SMSResult> {
+  const message = `${schoolName}: Your login password is ${password}. Please change it after first login. Do not share this code.`;
+  
+  try {
+    return await sendSMS({ phone, message });
+  } catch (error) {
+    console.error('[SMS] Password SMS failed:', error);
+    return { success: false, error: 'SMS send failed (non-critical)' };
+  }
 }

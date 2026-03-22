@@ -1,20 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { generateOTP, sendOTPSMS } from '@/lib/sms-service';
-
-const requestOTPSchema = z.object({
-  phone: z.string().min(10, 'Invalid phone number'),
-});
+import { generateOTP, hashOTP, sendOTPSMS } from '@/lib/sms-service';
+import { Prisma } from '@prisma/client';
 
 /**
- * POST /api/auth/parent/request-otp
- * 
- * Sends OTP via SMS to parent's phone
- * Only works if:
- * - Phone number exists in system
- * - Account has "parent" role
+ * Rate limiting configuration
+ * Prevents OTP abuse by limiting requests per phone number
  */
+const OTP_COOLDOWN_SECONDS = 60; // 60 seconds between OTP requests
+const OTP_EXPIRY_MINUTES = 10;
+
+/**
+ * Input validation schema for OTP request
+ */
+const requestOTPSchema = z.object({
+  phone: z.string().min(10, 'Invalid phone number'),
+  schoolId: z.string().optional(), // Optional school ID for multi-tenant lookup
+});
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -22,19 +26,38 @@ export async function POST(req: NextRequest) {
 
     if (!validation.success) {
       return NextResponse.json(
-        { error: 'Invalid phone number' },
+        { error: 'Invalid phone number format' },
         { status: 400 }
       );
     }
 
-    const { phone } = validation.data;
+    const { phone, schoolId } = validation.data;
 
-    // 1. Check if parent exists with this phone
+    // 1. Fix TypeScript issues with strongly typed Prisma Where Input
+    const userWhere: Prisma.UserWhereInput = {
+      phone,
+      role: 'parent',
+    };
+
+    if (schoolId) {
+      userWhere.school_id = schoolId;
+    }
+
+    // 2. Ensure Prisma queries use correct field names
     const user = await prisma.user.findFirst({
-      where: {
-        phone,
-        role: 'parent'
-      }
+      where: userWhere,
+      select: {
+        id: true,
+        school_id: true,
+        lastOtpSentAt: true,
+        otpExpiresAt: true,
+        school: {
+          select: {
+            isActive: true,
+            deactivationMessage: true
+          }
+        }
+      },
     });
 
     if (!user) {
@@ -44,44 +67,91 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Generate OTP
-    const otp = generateOTP();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    // 3. Store OTP in database
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        otp,
-        otpExpiresAt
-      }
-    });
-
-    // 4. Send OTP via SMS
-    const smsResult = await sendOTPSMS(phone, otp);
-
-    if (!smsResult.success) {
+    if (user.school && user.school.isActive === false) {
+      const msg = user.school.deactivationMessage || "This school's account has been deactivated.";
       return NextResponse.json(
-        { error: 'Failed to send OTP. Please try again.' },
-        { status: 500 }
+        { error: `SCHOOL_DEACTIVATED: ${msg}` },
+        { status: 403 }
       );
     }
 
-    // 5. Return success (don't expose OTP in response)
+    const now = new Date();
+    const lastOtpSentAt = user.lastOtpSentAt;
+
+    // 4. Enforce cooldown and allow resend.
+    // We only check against the lastOtpSentAt and the Cooldown Seconds.
+    if (lastOtpSentAt) {
+      const timeSinceLastOTP = (now.getTime() - lastOtpSentAt.getTime()) / 1000;
+
+      if (timeSinceLastOTP < OTP_COOLDOWN_SECONDS) {
+        const remainingSeconds = Math.ceil(OTP_COOLDOWN_SECONDS - timeSinceLastOTP);
+        return NextResponse.json(
+          {
+            error: 'Please wait before requesting another OTP',
+            retryAfter: remainingSeconds
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // Notice we've completely removed the check for \otpExpiresAt > now\ which prevented
+    // resending an OTP if the previous one was still technically valid/active.
+
+    const otp = generateOTP();
+    const hashedOTP = await hashOTP(otp);
+    
+    // 5. Clean up redundant Date conversion (using now.getTime() directly instead of new Date(new Date()))
+    const otpExpiresAt = new Date(now.getTime() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        otp: hashedOTP,
+        otpExpiresAt,
+        lastOtpSentAt: now,
+        otpAttempts: 0,
+      },
+    });
+
+    const smsResult = await sendOTPSMS(phone, otp);
+
+    // 3. Prevent runtime crashes by ensuring safe handling of external API responses (smsResult?.success)
+    if (!smsResult?.success) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          otp: null,
+          otpExpiresAt: null,
+        },
+      });
+
+      return NextResponse.json(
+        { error: 'Failed to send OTP. Please try again later.' },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
       {
         message: 'OTP sent successfully',
-        otpSentTo: phone,
-        expiresIn: '10 minutes'
+        otpSentTo: maskPhoneNumber(phone),
+        expiresIn: `${OTP_EXPIRY_MINUTES} minutes`
       },
       { status: 200 }
     );
 
   } catch (error) {
-    console.error('Error requesting OTP:', error);
+    console.error('[OTP Request Error]:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
-      { error: 'Failed to process request' },
+      { error: 'Failed to process request. Please try again later.' },
       { status: 500 }
     );
   }
+}
+
+function maskPhoneNumber(phone: string | null | undefined): string {
+  if (!phone) return '';
+  if (phone.length <= 4) return phone;
+  return '*'.repeat(phone.length - 4) + phone.slice(-4);
 }

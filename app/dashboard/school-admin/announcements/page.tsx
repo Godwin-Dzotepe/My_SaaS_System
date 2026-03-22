@@ -37,12 +37,7 @@ export default function SchoolAdminAnnouncementsPage() {
   };
 
   React.useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const u = JSON.parse(userStr);
-      setUserName(u.name);
-      setUser(u);
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user) { setUserName(d.user.name); setUser(d.user); } }).catch(console.error);
     fetchAnnouncements();
   }, []);
 
@@ -87,7 +82,7 @@ export default function SchoolAdminAnnouncementsPage() {
             <Bell className="w-6 h-6 text-blue-600" />
             Announcements
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Send announcements to all parents and staff in your school.</p>
+          <p className="text-gray-500 text-sm mt-1">Send announcements to all parents in your school (They will receive an SMS notification!).</p>
         </header>
 
         {/* Compose */}

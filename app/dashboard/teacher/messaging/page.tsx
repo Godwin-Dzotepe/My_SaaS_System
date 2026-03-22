@@ -8,10 +8,7 @@ export default function TeacherMessagingPage() {
   const [userName, setUserName] = React.useState('Teacher');
 
   React.useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      setUserName(JSON.parse(userStr).name);
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user) setUserName(d.user.name); }).catch(console.error);
   }, []);
 
   return (

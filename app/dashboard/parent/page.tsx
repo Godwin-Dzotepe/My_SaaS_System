@@ -81,16 +81,8 @@ export default function ParentDashboard() {
   const [userName, setUserName] = React.useState('Parent');
 
   React.useEffect(() => {
-    // Get user from localStorage
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        if (user.name) setUserName(user.name);
-      } catch (e) {
-        console.error('Error parsing user from localStorage', e);
-      }
-    }
+    
+    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user && d.user.name) setUserName(d.user.name); }).catch(console.error);
   }, []);
 
   return (

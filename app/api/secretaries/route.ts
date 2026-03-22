@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const secretaries = await prisma.user.findMany({
       where: {
         role: 'secretary',
-        school_id: user.schoolId || undefined,
+        school_id: user.school_id || undefined,
       },
       select: {
         id: true,
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     if (auth instanceof NextResponse) return auth;
     const { user } = auth;
 
-    if (!user.schoolId) {
+    if (!user.school_id) {
       return NextResponse.json({ error: 'School information not found' }, { status: 400 });
     }
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         phone,
         password: hashedPassword,
         role: 'secretary',
-        school_id: user.schoolId,
+        school_id: user.school_id,
       },
       select: {
         id: true,

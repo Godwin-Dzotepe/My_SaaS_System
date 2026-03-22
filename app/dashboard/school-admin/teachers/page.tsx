@@ -5,6 +5,7 @@ import { ActionMenu } from '@/components/ui/action-menu';
 import {
   Plus,
   Search,
+  Eye,
   Mail,
   Phone,
   ArrowLeft,
@@ -18,6 +19,7 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useRouter } from 'next/navigation';
 
 
 
@@ -42,6 +44,7 @@ const itemVariants = {
 };
 
 export default function TeachersPage() {
+  const router = useRouter();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -230,7 +233,13 @@ export default function TeachersPage() {
                                 entityId={teacher.id}
                                 editPath="/dashboard/school-admin/teachers"
                                 onDelete={handleDeleteTeacher}
-                                actions={[]}
+                                actions={[
+                                  {
+                                    label: 'View',
+                                    onClick: () => router.push(`/dashboard/school-admin/teachers/view/${teacher.id}`),
+                                    icon: <Eye size={16} />,
+                                  },
+                                ]}
                               />
                             </td>
                           </motion.tr>

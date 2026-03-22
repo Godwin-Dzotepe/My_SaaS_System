@@ -95,19 +95,7 @@ export default function CompletedStudentsPage() {
   const [selectedYear, setSelectedYear] = useState('');
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        if (user.school_id) {
-          setSchoolId(user.school_id);
-          loadCompletedStudents(user.school_id);
-        }
-      } catch (e) {
-        console.error('Error parsing user', e);
-        setLoading(false);
-      }
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(d => { const sId = d.user?.school_id; if (sId) { setSchoolId(sId); loadCompletedStudents(sId); } }).catch(console.error);
   }, []);
 
   const loadCompletedStudents = async (sId: string, year?: string) => {

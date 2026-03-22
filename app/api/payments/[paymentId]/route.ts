@@ -32,7 +32,7 @@ export async function GET(
     }
 
     // Authorization check
-    if (user.role === 'parent' && payment.parent_id !== user.userId) {
+    if (user.role === 'parent' && payment.parent_id !== user.id) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
     }
     if (user.role !== 'parent' && user.role !== 'super_admin' && !validateSchool(user, payment.school_id)) {

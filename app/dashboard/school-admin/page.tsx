@@ -75,15 +75,7 @@ export default function SchoolAdminDashboard() {
   ];
 
   React.useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        if (user.name) setUserName(user.name);
-      } catch (e) {
-        console.error('Error parsing user', e);
-      }
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user && d.user.name) setUserName(d.user.name); }).catch(console.error);
   }, []);
 
   React.useEffect(() => {
@@ -93,7 +85,7 @@ export default function SchoolAdminDashboard() {
         const response = await fetch('/api/dashboard/stats');
         
         if (!response.ok) {
-          throw new Error('Failed to fetch stats');
+          const errorData = await response.json().catch(() => null); throw new Error(`Failed to fetch stats: ${errorData?.error || response.statusText}`);
         }
         
         const data = await response.json();
@@ -213,7 +205,9 @@ export default function SchoolAdminDashboard() {
                   <div>
                     <p className="text-xs font-semibold text-[#646464] uppercase tracking-wider">Revenue</p>
                     <h3 className="text-2xl font-bold text-[#212529]">
-                      {loading ? <Loader className="w-5 h-5 animate-spin" /> : `$${stats.totalRevenue.toLocaleString('en-US', { maximumFractionDigits: 2 })}`}
+                      {loading ? <Loader className="w-5 h-5 animate-spin" /> : `$
+                        ${stats.totalRevenue.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                      `}
                     </h3>
                   </div>
                </div>
@@ -228,8 +222,8 @@ export default function SchoolAdminDashboard() {
                   <CardTitle className="text-lg font-bold text-[#212529]">Student Growth</CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                  <div className="h-[300px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div style={{ width: '100%', height: 300 }}>
+                    <ResponsiveContainer>
                       <AreaChart data={enrollmentData}>
                         <defs>
                           <linearGradient id="colorStudents" x1="0" y1="0" x2="0" y2="1">
@@ -393,3 +387,6 @@ export default function SchoolAdminDashboard() {
     </div>
   );
 }
+
+
+

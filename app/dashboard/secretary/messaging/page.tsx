@@ -143,7 +143,7 @@ export default function SecretaryMessagingPage() {
               <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
                 <p className="text-sm text-amber-800 font-medium">Broadcast Tip</p>
                 <p className="text-xs text-amber-600 mt-1">
-                  Using "All Parents" will reach 854 guardians. Make sure the message is school-wide.
+                  Using &quot;All Parents&quot; will reach 854 guardians. Make sure the message is school-wide.
                 </p>
               </div>
             </div>

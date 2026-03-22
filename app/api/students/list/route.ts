@@ -8,13 +8,13 @@ export async function GET(req: NextRequest) {
     if (auth instanceof NextResponse) return auth;
     const { user } = auth;
 
-    if (!user.schoolId && user.role !== 'super_admin') {
+    if (!user.school_id && user.role !== 'super_admin') {
       return NextResponse.json({ error: 'User is not associated with a school' }, { status: 400 });
     }
 
     const students = await prisma.student.findMany({
       where: {
-        school_id: user.schoolId || undefined,
+        school_id: user.school_id || undefined,
       },
       include: {
         class: {

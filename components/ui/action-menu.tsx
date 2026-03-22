@@ -84,6 +84,8 @@ export function ActionMenu({ actions, entityId, editPath, onDelete }: ActionMenu
     },
   ];
 
+  const menuActions = [...actions, ...standardActions];
+
   return (
     <>
       <div className="relative" ref={menuRef}>
@@ -99,7 +101,7 @@ export function ActionMenu({ actions, entityId, editPath, onDelete }: ActionMenu
               className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-900 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-700"
             >
               <ul>
-                {standardActions.map((action, index) => (
+                {menuActions.map((action, index) => (
                   <li key={index}>
                     <button
                       onClick={(e) => {

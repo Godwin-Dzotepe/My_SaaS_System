@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "../dist-scripts",
+    "noEmit": false,
+    "resolveJsonModule": true // Ensure JSON modules are resolved if used in script
+  },
+  "include": [
+    "populate-attendance-class-id.ts"
+  ]
+}

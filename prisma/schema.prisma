@@ -62,6 +62,9 @@ model School {
   id          String   @id @default(uuid())
   school_name String
   address     String
+  isActive    Boolean  @default(true)
+  deactivationMessage String?
+
   phone       String
   created_at  DateTime @default(now())
 
@@ -75,6 +78,7 @@ model School {
   gradingConfigs      GradingConfig[]
   schoolFees          SchoolFee[]
   payments            Payment[]
+  teacherAttendance   TeacherAttendance[]
 }
 
 enum Role {
@@ -104,14 +108,22 @@ model User {
   name      String
   phone     String  @unique
   email     String? @unique
+  emailVerified DateTime?
+  image     String?
   password  String
   role      Role
   school_id String?
   school    School? @relation(fields: [school_id], references: [id])
 
-  // OTP fields for SMS login
-  otp           String? // Temporary OTP for SMS login
-  otpExpiresAt  DateTime? // Expiry time for OTP
+  // OTP fields for SMS login - SECURED with hashing and rate limiting
+  otp               String?  // Hashed OTP (never plain text)
+  otpExpiresAt      DateTime? // Expiry time for OTP (10 minutes)
+  otpAttempts       Int      @default(0) // Track failed attempts (max 5)
+  lastOtpSentAt     DateTime? // Rate limiting - track last OTP request
+
+  // Indexes for performance
+  @@index([phone, role])
+  @@index([school_id, phone])
 
   // Relations for specific roles
   classes        Class[] // A teacher can manage multiple classes (or one)
@@ -122,6 +134,7 @@ model User {
   students       Student[]      @relation("StudentParents") // Parent's children
 
   subjects Subject[] @relation("TeacherSubjects")
+  teacherAttendance TeacherAttendance[] @relation("TeacherAttendance")
 
   created_at DateTime @default(now())
 }
@@ -136,6 +149,8 @@ model Class {
 
   students Student[]
   homework Homework[]
+  attendance Attendance[]
+  schoolFees SchoolFee[]
 }
 
 enum StudentStatus {
@@ -147,6 +162,34 @@ model Student {
   id             String  @id @default(uuid())
   student_number String? // Unique per school, not globally
   name           String
+  date_of_birth  DateTime?
+  gender         String?
+  nationality    String?
+  admission_date DateTime?
+  previous_school String?
+  residential_address String?
+  digital_address String?
+  father_name     String?
+  father_phone    String?
+  father_profession String?
+  father_status   String?
+  father_residential_address String?
+  father_digital_address String?
+  mother_name     String?
+  mother_phone    String?
+  mother_profession String?
+  mother_status   String?
+  mother_residential_address String?
+  mother_digital_address String?
+  guardian_name   String?
+  guardian_phone  String?
+  guardian_profession String?
+  guardian_residential_address String?
+  guardian_digital_address String?
+  emergency_contact_name String?
+  emergency_contact_phone String?
+  medical_notes  String?
+  profile_image  String?
   class_id       String
   class          Class   @relation(fields: [class_id], references: [id])
   school_id      String
@@ -184,10 +227,17 @@ model Score {
   student       Student  @relation(fields: [student_id], references: [id])
   subject_id    String
   subject       Subject  @relation(fields: [subject_id], references: [id])
-  score         Float
+  classScore    Float?
+  examScore     Float?
+  totalScore    Float?
+  grade         String?
+  remark        String?
   term          String
   academic_year String
   created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@index([student_id, subject_id, academic_year, term])
 }
 
 enum AttendanceStatus {
@@ -199,8 +249,12 @@ model Attendance {
   id         String           @id @default(uuid())
   student_id String
   student    Student          @relation(fields: [student_id], references: [id])
+  class_id   String
+  class      Class            @relation(fields: [class_id], references: [id])
   date       DateTime         @default(now())
   status     AttendanceStatus
+
+  @@unique([student_id, date, class_id])
 }
 
 // The old 'Fee' model is replaced by the new 'Payment' model.
@@ -271,6 +325,8 @@ model SchoolFee {
   id            String    @id @default(uuid())
   school_id     String
   school        School    @relation(fields: [school_id], references: [id])
+  class_id      String?
+  class         Class?    @relation(fields: [class_id], references: [id])
   fee_type      FeeType // TUITION, LUNCH, TRANSPORT, CLASS, OTHER
   amount        Float
   academic_year String // e.g., "2024-2025"
@@ -300,3 +356,16 @@ enum FeeType {
 // This line ensures the Prisma client knows about this specific relationship.
 // No change needed in the User model itself, just added a comment about its existence.
 // 'ParentPayments[]' is declared in the User model.
+
+model TeacherAttendance {
+  id         String           @id @default(uuid())
+  teacher_id String
+  teacher    User             @relation("TeacherAttendance", fields: [teacher_id], references: [id])
+  school_id  String
+  school     School           @relation(fields: [school_id], references: [id])
+  date       DateTime         @default(now())
+  status     AttendanceStatus
+
+  @@unique([teacher_id, date])
+}
+

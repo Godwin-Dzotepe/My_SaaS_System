@@ -19,13 +19,9 @@ export default function ParentEventsPage() {
   const [userName, setUserName] = React.useState('Parent');
 
   React.useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        setUserName(user.name);
-      } catch (e) {}
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(meData => {
+      if (meData.user) setUserName(meData.user.name);
+    }).catch(e => {});
 
     const fetchEvents = async () => {
       try {

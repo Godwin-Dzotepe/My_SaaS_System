@@ -79,19 +79,7 @@ export default function PromotionPage() {
 
   useEffect(() => {
     // Get school ID from user session/localStorage
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        if (user.school_id) {
-          setSchoolId(user.school_id);
-          // Load promotion preview from API
-          loadPromotionPreview(user.school_id);
-        }
-      } catch (e) {
-        console.error('Error parsing user', e);
-      }
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(d => { const sId = d.user?.school_id; if (sId) { setSchoolId(sId); loadPromotionPreview(sId); } }).catch(console.error);
   }, []);
 
   const loadPromotionPreview = async (sId: string) => {

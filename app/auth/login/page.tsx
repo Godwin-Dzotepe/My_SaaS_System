@@ -51,9 +51,6 @@ export default function LoginPage() {
         throw new Error(data.error || 'Login failed');
       }
 
-      // Store user info in localStorage
-      localStorage.setItem('user', JSON.stringify(data.user));
-
       // Redirect based on role
       const redirect = ROLE_REDIRECTS[data.user.role] || '/dashboard';
       router.push(redirect);
@@ -142,7 +139,7 @@ export default function LoginPage() {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
               >
-                {error}
+                {error.startsWith('SCHOOL_DEACTIVATED:') ? (<div><strong className="block text-red-100">Account Access Disabled</strong><span className="mt-1 block">{error.split('SCHOOL_DEACTIVATED:')[1]}</span></div>) : error}
               </motion.div>
             )}
 

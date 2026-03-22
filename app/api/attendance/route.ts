@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    if (user.role === 'teacher' && schoolClass.teacher_id !== user.userId) {
+    if (user.role === 'teacher' && schoolClass.teacher_id !== user.id) {
       return NextResponse.json({ error: 'You are not the teacher of this class' }, { status: 403 });
     }
 
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     if (!schoolClass || !validateSchool(user, schoolClass.school_id)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
-    if (user.role === 'teacher' && schoolClass.teacher_id !== user.userId) {
+    if (user.role === 'teacher' && schoolClass.teacher_id !== user.id) {
         return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
     }
 
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
             // So we manually find and update or create.
             id: 'temp_id_replaced_by_manual_logic' 
           },
-          create: { student_id: rec.student_id, status: rec.status, date: new Date(dateStr) },
+          create: { student_id: rec.student_id, class_id: class_id, status: rec.status, date: new Date(dateStr) },
           update: { status: rec.status }
         });
       })
@@ -135,6 +135,7 @@ export async function POST(req: NextRequest) {
         await prisma.attendance.createMany({
             data: records.map(r => ({
                 student_id: r.student_id,
+                class_id: class_id,
                 status: r.status,
                 date: new Date(dateStr)
             }))

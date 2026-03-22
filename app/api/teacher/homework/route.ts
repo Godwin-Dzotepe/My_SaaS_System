@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const homework = await prisma.homework.create({
       data: {
         ...validation.data,
-        teacher_id: user.userId,
+        teacher_id: user.id,
         due_date: validation.data.due_date ? new Date(validation.data.due_date) : null,
       }
     });
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   try {
     const homeworks = await prisma.homework.findMany({
       where: {
-        teacher_id: user.userId
+        teacher_id: user.id
       },
       orderBy: { created_at: 'desc' }
     });

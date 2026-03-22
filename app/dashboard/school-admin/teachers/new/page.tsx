@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, CheckCircle2, Mail, User, Phone, Lock, BookOpen } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle2, Mail, User, Phone, Lock, BookOpen, MapPin, GraduationCap, ImagePlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -36,24 +36,23 @@ export default function NewTeacherPage() {
   
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [fileInputKey, setFileInputKey] = useState(0);
   
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    password: ''
+    password: '',
+    residential_address: '',
+    digital_address: '',
+    is_graduate: 'yes',
+    graduate_school: '',
   });
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        if (user.name) setUserName(user.name);
-      } catch (e) {
-        console.error('Error parsing user', e);
-      }
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user && d.user.name) setUserName(d.user.name); }).catch(console.error);
     
     // Fetch subjects available to the school
     const fetchSubjects = async () => {
@@ -70,7 +69,15 @@ export default function NewTeacherPage() {
     fetchSubjects();
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -88,17 +95,22 @@ export default function NewTeacherPage() {
     setError('');
 
     try {
-      const payload = {
-        ...formData,
-        subjectIds: selectedSubjects
-      };
-
       const response = await fetch('/api/teachers', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+        body: (() => {
+          const payload = new FormData();
+          Object.entries(formData).forEach(([key, value]) => {
+            payload.append(key, key === 'is_graduate' ? String(value === 'yes') : value);
+          });
+          if (formData.is_graduate !== 'yes') {
+            payload.set('graduate_school', '');
+          }
+          selectedSubjects.forEach((subjectId) => payload.append('subjectIds', subjectId));
+          if (profileImage) {
+            payload.append('profile_image', profileImage);
+          }
+          return payload;
+        })(),
       });
 
       if (!response.ok) {
@@ -107,6 +119,12 @@ export default function NewTeacherPage() {
       }
 
       setSaved(true);
+      setProfileImage(null);
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+      setImagePreview('');
+      setFileInputKey((prev) => prev + 1);
       setTimeout(() => {
         setSaved(false);
         router.push('/dashboard/school-admin/teachers');
@@ -155,7 +173,7 @@ export default function NewTeacherPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Personal Information</CardTitle>
-                  <CardDescription>Basic details and contact information</CardDescription>
+                  <CardDescription>Basic details, contact information, and location</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -182,6 +200,81 @@ export default function NewTeacherPage() {
                     </label>
                     <Input name="password" type="password" value={formData.password} onChange={handleChange} placeholder="Secure password" required />
                   </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <ImagePlus className="w-4 h-4 text-gray-400" /> Profile Image
+                    </label>
+                    <Input
+                      key={fileInputKey}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (imagePreview) {
+                          URL.revokeObjectURL(imagePreview);
+                        }
+                        setProfileImage(file);
+                        setImagePreview(file ? URL.createObjectURL(file) : '');
+                      }}
+                    />
+                    {imagePreview ? (
+                      <img
+                        src={imagePreview}
+                        alt="Teacher profile preview"
+                        className="h-24 w-24 rounded-2xl border border-gray-200 object-cover"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-gray-400" /> Residential Address
+                    </label>
+                    <textarea
+                      name="residential_address"
+                      value={formData.residential_address}
+                      onChange={handleChange}
+                      placeholder="Enter teacher's residential address"
+                      className="min-h-24 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-gray-400" /> Digital Address
+                    </label>
+                    <Input
+                      name="digital_address"
+                      value={formData.digital_address}
+                      onChange={handleChange}
+                      placeholder="e.g. GA-123-4567"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-gray-400" /> Graduate?
+                    </label>
+                    <select
+                      name="is_graduate"
+                      value={formData.is_graduate}
+                      onChange={handleChange}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    >
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </div>
+                  {formData.is_graduate === 'yes' ? (
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <GraduationCap className="w-4 h-4 text-gray-400" /> Graduate School
+                      </label>
+                      <Input
+                        name="graduate_school"
+                        value={formData.graduate_school}
+                        onChange={handleChange}
+                        placeholder="Enter university or college name"
+                      />
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             </motion.div>

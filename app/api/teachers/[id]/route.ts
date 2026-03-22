@@ -13,20 +13,73 @@ export async function GET(
 
     const { id: teacherId } = await params;
 
-    const teacher = await prisma.user.findUnique({
+    const teacher = await prisma.user.findFirst({
       where: { id: teacherId, role: 'teacher' },
       select: {
         id: true,
         name: true,
         email: true,
         phone: true,
+        image: true,
+        role: true,
         school_id: true,
+        created_at: true,
+        school: {
+          select: {
+            id: true,
+            school_name: true,
+            address: true,
+            phone: true,
+          },
+        },
+        subjects: {
+          select: {
+            id: true,
+            subject_name: true,
+          },
+        },
         classes: {
           select: {
             id: true,
             class_name: true,
+            students: {
+              where: {
+                status: 'active',
+              },
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           }
-        }
+        },
+        homework: {
+          select: {
+            id: true,
+            title: true,
+            due_date: true,
+            created_at: true,
+            class: {
+              select: {
+                id: true,
+                class_name: true,
+              },
+            },
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+        },
+        teacherAttendance: {
+          select: {
+            id: true,
+            date: true,
+            status: true,
+          },
+          orderBy: {
+            date: 'desc',
+          },
+        },
       }
     });
 
@@ -60,7 +113,7 @@ export async function PUT(
     const { name, email, phone } = body;
 
     // Verify teacher exists and belongs to user's school
-    const teacher = await prisma.user.findUnique({
+    const teacher = await prisma.user.findFirst({
       where: { id: teacherId, role: 'teacher' }
     });
 
@@ -113,7 +166,7 @@ export async function DELETE(
 
     const { id: teacherId } = await params;
 
-    const teacher = await prisma.user.findUnique({
+    const teacher = await prisma.user.findFirst({
       where: { id: teacherId, role: 'teacher' }
     });
 

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { authorize, validateSchool } from '@/lib/api-auth';
+import { withAuth, validateSchool, authorize } from '@/lib/api-auth';
 
 const schoolFeeSchema = z.object({
-  school_id: z.string().uuid(),
+  class_id: z.string().uuid().optional().or(z.literal('')),
   fee_type: z.enum(['TUITION', 'LUNCH', 'TRANSPORT', 'CLASS', 'OTHER']),
   amount: z.number().min(0),
   academic_year: z.string(),
@@ -14,26 +14,13 @@ const schoolFeeSchema = z.object({
 });
 
 // GET: Fetch school fees
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async ({ req, session }) => {
   try {
-    const auth = await authorize(req, ['school_admin', 'finance_admin', 'super_admin']);
-    if (auth instanceof NextResponse) return auth;
-    const { user } = auth;
-
+    const user = session.user;
     const { searchParams } = new URL(req.url);
-    const school_id = searchParams.get('school_id');
     const academic_year = searchParams.get('academic_year');
 
-    if (!school_id) {
-      return NextResponse.json({ error: 'school_id is required' }, { status: 400 });
-    }
-
-    // Validate school access
-    if (!validateSchool(user, school_id)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    const where: any = { school_id };
+    const where: any = { school_id: user.school_id! };
     if (academic_year) {
       where.academic_year = academic_year;
     }
@@ -48,15 +35,12 @@ export async function GET(req: NextRequest) {
     console.error('Error fetching school fees:', error);
     return NextResponse.json({ error: 'Failed to fetch school fees' }, { status: 500 });
   }
-}
+}, { roles: ['school_admin', 'finance_admin', 'super_admin', 'parent'] });
 
 // POST: Create school fee
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async ({ req, session }) => {
   try {
-    const auth = await authorize(req, ['school_admin']);
-    if (auth instanceof NextResponse) return auth;
-    const { user } = auth;
-
+    const user = session.user;
     const body = await req.json();
     const validation = schoolFeeSchema.safeParse(body);
 
@@ -64,16 +48,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: validation.error.format() }, { status: 400 });
     }
 
-    const { school_id, fee_type, amount, academic_year, term, description, due_date } = validation.data;
-
-    // Validate school access
-    if (!validateSchool(user, school_id)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
+    const { class_id, fee_type, amount, academic_year, term, description, due_date } = validation.data;
 
     const fee = await prisma.schoolFee.create({
       data: {
-        school_id,
+        school_id: user.school_id!,
+        class_id: class_id ? class_id : null,
         fee_type,
         amount,
         academic_year,
@@ -88,13 +68,13 @@ export async function POST(req: NextRequest) {
     console.error('Error creating school fee:', error);
     return NextResponse.json({ error: 'Failed to create school fee' }, { status: 500 });
   }
-}
+}, { roles: ['school_admin'] });
 
 // PUT: Update school fee
 export async function PUT(req: NextRequest) {
   try {
     const auth = await authorize(req, ['school_admin']);
-    if (auth instanceof NextResponse) return auth;
+    if (!('user' in auth)) return auth;
     const { user } = auth;
 
     const body = await req.json();
@@ -138,7 +118,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const auth = await authorize(req, ['school_admin']);
-    if (auth instanceof NextResponse) return auth;
+    if (!('user' in auth)) return auth;
     const { user } = auth;
 
     const { searchParams } = new URL(req.url);

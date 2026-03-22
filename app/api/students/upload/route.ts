@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get school_id from user context
-    const schoolId = user.schoolId;
+    const schoolId = user.school_id;
 
     if (!schoolId) {
       return NextResponse.json({ error: 'School information not found' }, { status: 400 });

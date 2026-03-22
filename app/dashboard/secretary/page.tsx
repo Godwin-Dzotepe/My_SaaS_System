@@ -47,13 +47,7 @@ export default function SecretaryDashboard() {
   const [userName, setUserName] = React.useState('Secretary');
 
   React.useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        if (user.name) setUserName(user.name);
-      } catch (e) {}
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user && d.user.name) setUserName(d.user.name); }).catch(console.error);
   }, []);
 
   return (

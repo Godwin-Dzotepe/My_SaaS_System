@@ -13,13 +13,7 @@ export function CalendarWidget() {
   const [userRole, setUserRole] = React.useState('parent');
 
   React.useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        if (user.role) setUserRole(user.role);
-      } catch (e) {}
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user && d.user.role) setUserRole(d.user.role); }).catch(console.error);
 
     const fetchEvents = async () => {
       try {

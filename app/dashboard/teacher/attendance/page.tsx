@@ -30,11 +30,9 @@ export default function TeacherAttendancePage() {
   const [userName, setUserName] = React.useState('Teacher');
 
   React.useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      setUserName(user.name);
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(meData => {
+      if (meData.user) setUserName(meData.user.name);
+    }).catch(e => {});
 
     // Fetch classes assigned to this teacher
     const fetchMyClasses = async () => {

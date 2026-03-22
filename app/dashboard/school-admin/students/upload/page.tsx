@@ -207,8 +207,9 @@ export default function BulkUploadPage() {
         .filter(row => row[columnMappings['student_name']])
         .map(row => ({
           name: row[columnMappings['student_name']],
-          parent_phone: row[columnMappings['parent_name']] || row[columnMappings['contact_number']] || 'N/A',
-          student_number: row[columnMappings['student_number']] || undefined,
+          parent_name: columnMappings['parent_name'] ? row[columnMappings['parent_name']] : undefined,
+          parent_phone: columnMappings['contact_number'] ? row[columnMappings['contact_number']] : undefined,
+          student_number: columnMappings['student_number'] ? row[columnMappings['student_number']] : undefined,
           class_id: selectedClass,
         }));
 
@@ -473,7 +474,7 @@ export default function BulkUploadPage() {
                   <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                       <CardTitle>Data Preview</CardTitle>
-                      <p className="text-sm text-gray-500 mt-1">Found {fileData.length} students in "{fileName}"</p>
+                      <p className="text-sm text-gray-500 mt-1">Found {fileData.length} students in &quot;{fileName}&quot;</p>
                     </div>
                     <Badge variant="success">Ready to import</Badge>
                   </CardHeader>

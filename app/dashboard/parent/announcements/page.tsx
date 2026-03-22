@@ -20,9 +20,10 @@ export default function ParentAnnouncementsPage() {
 
   React.useEffect(() => {
     const fetchAnnouncements = async () => {
-      const userStr = localStorage.getItem('user');
-      if (!userStr) return;
-      const user = JSON.parse(userStr);
+      const meRes = await fetch('/api/auth/me');
+      const meData = await meRes.json();
+      if (!meData.user) return;
+      const user = meData.user;
       setUserName(user.name);
 
       try {

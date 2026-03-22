@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const { user } = auth;
 
     const { searchParams } = new URL(req.url);
-    const schoolId = searchParams.get('school_id') || user.schoolId;
+    const schoolId = searchParams.get('school_id') || user.school_id;
 
     if (!schoolId) {
       return NextResponse.json({ error: 'School ID required' }, { status: 400 });

@@ -16,7 +16,7 @@ interface DashboardCardProps {
 
 export function DashboardCard({ title, value, description, icon, iconBg, trend, className }: DashboardCardProps) {
   return (
-    <Card className={cn("hover:shadow-md transition-shadow", className)}>
+    <Card className={cn("hover:-translate-y-1 hover:shadow-lg transition-all duration-300", className)}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-gray-500">{title}</CardTitle>
         <div className={cn("p-2 rounded-lg", iconBg)}>{icon}</div>

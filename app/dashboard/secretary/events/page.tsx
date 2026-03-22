@@ -42,11 +42,9 @@ export default function SecretaryEventsPage() {
   };
 
   React.useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      setUserName(user.name);
-    }
+    fetch('/api/auth/me').then(r => r.json()).then(meData => {
+      if (meData.user) setUserName(meData.user.name);
+    }).catch(e => {});
     fetchEvents();
   }, []);
 
@@ -55,9 +53,10 @@ export default function SecretaryEventsPage() {
     setError('');
     setSuccess('');
     
-    const userStr = localStorage.getItem('user');
-    if (!userStr) return;
-    const user = JSON.parse(userStr);
+    const meRes = await fetch('/api/auth/me');
+      const meData = await meRes.json();
+      if (!meData.user) return;
+      const user = meData.user;
 
     try {
       const res = await fetch('/api/events', {

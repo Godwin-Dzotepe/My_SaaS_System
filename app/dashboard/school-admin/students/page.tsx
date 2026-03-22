@@ -6,6 +6,7 @@ import {
   Plus,
   Search,
   Phone,
+  Eye,
   ArrowLeft,
   Loader2,
   Users
@@ -17,13 +18,14 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useRouter } from 'next/navigation';
 
 
 
 interface Student {
   id: string;
   name: string;
-  parent_phone: string;
+  parent_phone: string | null;
   status: string;
   class: { id: string; class_name: string };
   created_at: string;
@@ -40,6 +42,7 @@ const itemVariants = {
 };
 
 export default function StudentsPage() {
+  const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,7 +86,7 @@ export default function StudentsPage() {
   
   const filteredStudents = students.filter(student => 
     student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.parent_phone.includes(searchTerm) ||
+    (student.parent_phone || '').includes(searchTerm) ||
     student.class.class_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -205,7 +208,7 @@ export default function StudentsPage() {
                             <td className="py-4 px-6">
                               <div className="flex items-center gap-2 text-sm text-gray-600">
                                 <Phone className="w-3.5 h-3.5 text-gray-400" />
-                                {student.parent_phone}
+                                {student.parent_phone || 'No phone on file'}
                               </div>
                             </td>
                             <td className="py-4 px-6">
@@ -218,7 +221,13 @@ export default function StudentsPage() {
                                 entityId={student.id}
                                 editPath="/dashboard/school-admin/students"
                                 onDelete={handleDeleteStudent}
-                                actions={[]}
+                                actions={[
+                                  {
+                                    label: 'View',
+                                    onClick: () => router.push(`/dashboard/school-admin/students/view/${student.id}`),
+                                    icon: <Eye size={16} />,
+                                  },
+                                ]}
                               />
                             </td>
                           </motion.tr>

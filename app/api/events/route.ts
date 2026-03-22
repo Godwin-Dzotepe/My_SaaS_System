@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const { user } = auth;
 
     const { searchParams } = new URL(req.url);
-    const schoolId = searchParams.get('school_id') || user.schoolId;
+    const schoolId = searchParams.get('school_id') || user.school_id;
 
     if (!schoolId && user.role !== 'super_admin') {
       return NextResponse.json({ error: 'School ID required' }, { status: 400 });
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         start_date: new Date(start_date),
         end_date: new Date(end_date),
         school_id,
-        created_by: user.userId,
+        created_by: user.id,
       },
     });
 
