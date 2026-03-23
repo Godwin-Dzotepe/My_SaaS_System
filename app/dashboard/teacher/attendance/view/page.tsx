@@ -125,7 +125,7 @@ export default function ViewAttendancePage() {
           </CardTitle>
           <CardDescription>Review attendance records for a specific class and date.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label htmlFor="date" className="block text-sm font-medium text-gray-700">
@@ -171,17 +171,17 @@ export default function ViewAttendancePage() {
 
           {selectedClassId && attendanceSummary.length > 0 && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
                   <Users className="w-5 h-5" /> Attendance Summary for {classes.find(c => c.id === selectedClassId)?.class_name} on {selectedDate}
                 </h3>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Badge variant="default" className="bg-green-500">Present: {presentCount}</Badge>
                   <Badge variant="destructive">Absent: {absentCount}</Badge>
                 </div>
               </div>
 
-              <div className="border rounded-lg overflow-hidden">
+              <div className="hidden overflow-hidden rounded-lg border md:block">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -209,6 +209,23 @@ export default function ViewAttendancePage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="space-y-3 md:hidden">
+                {attendanceSummary.map((student) => (
+                  <div key={student.student_id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-900">{student.student_name}</p>
+                        {student.student_number ? <Badge variant="outline">{student.student_number}</Badge> : null}
+                      </div>
+                      <Badge variant={student.status === 'present' ? 'default' : 'destructive'} className="inline-flex">
+                        {student.status === 'present' ? <CheckCircle2 className="mr-1 h-4 w-4" /> : <XCircle className="mr-1 h-4 w-4" />}
+                        {student.status.charAt(0).toUpperCase() + student.status.slice(1)}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

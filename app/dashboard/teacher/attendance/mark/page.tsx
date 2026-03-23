@@ -191,8 +191,8 @@ export default function MarkAttendancePage() {
           </CardTitle>
           <CardDescription>Select a class and date to record student attendance.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-grid-cols-2 gap-4">
+        <CardContent className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label htmlFor="date" className="block text-sm font-medium text-gray-700">
                 Date
@@ -237,10 +237,10 @@ export default function MarkAttendancePage() {
 
           {selectedClassId && students.length > 0 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
                 <Users className="w-5 h-5" /> Students in {classes.find(c => c.id === selectedClassId)?.class_name}
               </h3>
-              <div className="border rounded-lg overflow-hidden">
+              <div className="hidden overflow-hidden rounded-lg border md:block">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -281,6 +281,37 @@ export default function MarkAttendancePage() {
                   </tbody>
                 </table>
               </div>
+
+              <div className="space-y-3 md:hidden">
+                {students.map((student) => (
+                  <div key={student.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-900">{student.name}</p>
+                        {student.student_number ? <Badge variant="outline">{student.student_number}</Badge> : null}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant={attendance[student.id] === 'present' ? 'default' : 'outline'}
+                          size="sm"
+                          className="w-full"
+                          onClick={() => handleAttendanceChange(student.id, 'present')}
+                        >
+                          Present
+                        </Button>
+                        <Button
+                          variant={attendance[student.id] === 'absent' ? 'destructive' : 'outline'}
+                          size="sm"
+                          className="w-full"
+                          onClick={() => handleAttendanceChange(student.id, 'absent')}
+                        >
+                          Absent
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -291,8 +322,8 @@ export default function MarkAttendancePage() {
           )}
 
           {selectedClassId && students.length > 0 && (
-            <div className="flex justify-end">
-              <Button onClick={handleSubmitAttendance} disabled={saving || loading} className="gap-2">
+            <div className="flex justify-stretch sm:justify-end">
+              <Button onClick={handleSubmitAttendance} disabled={saving || loading} className="w-full gap-2 sm:w-auto">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save Attendance
               </Button>

@@ -227,13 +227,14 @@ export default function TeacherScoringPage() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName={session?.name || 'Teacher User'} />
-      <div className="flex-1 lg:ml-64 p-4 md:p-8">
+      <div className="flex-1 p-4 md:p-8 lg:ml-64">
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-2">
           <CardTitle>Enter Student Scores</CardTitle>
+          <p className="text-sm text-gray-500">Choose a class, subject, and term, then enter scores in a mobile-friendly layout.</p>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <CardContent className="space-y-6 px-4 pb-4 sm:px-6 sm:pb-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Select
               value={selectedClass}
               onChange={e => setSelectedClass(e.target.value)}
@@ -282,43 +283,79 @@ export default function TeacherScoringPage() {
 
           {selectedClass && students.length > 0 && (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student Name</TableHead>
-                    <TableHead>Student ID</TableHead>
-                    <TableHead className="w-32">Class Score</TableHead>
-                    <TableHead className="w-32">Exam Score</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {students.map(student => (
-                    <TableRow key={student.id}>
-                      <TableCell>{student.name}</TableCell>
-                      <TableCell>{student.student_number || 'N/A'}</TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={scores[student.id]?.classScore ?? ''}
-                          onChange={e => handleScoreChange(student.id, 'classScore', e.target.value)}
-                          placeholder="e.g., 40"
-                          disabled={isLoading}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={scores[student.id]?.examScore ?? ''}
-                          onChange={e => handleScoreChange(student.id, 'examScore', e.target.value)}
-                          placeholder="e.g., 60"
-                          disabled={isLoading}
-                        />
-                      </TableCell>
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Student ID</TableHead>
+                      <TableHead className="w-32">Class Score</TableHead>
+                      <TableHead className="w-32">Exam Score</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <Button onClick={handleSaveScores} disabled={isLoading || Object.keys(scores).length === 0}>
+                  </TableHeader>
+                  <TableBody>
+                    {students.map(student => (
+                      <TableRow key={student.id}>
+                        <TableCell>{student.name}</TableCell>
+                        <TableCell>{student.student_number || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={scores[student.id]?.classScore ?? ''}
+                            onChange={e => handleScoreChange(student.id, 'classScore', e.target.value)}
+                            placeholder="e.g., 40"
+                            disabled={isLoading}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={scores[student.id]?.examScore ?? ''}
+                            onChange={e => handleScoreChange(student.id, 'examScore', e.target.value)}
+                            placeholder="e.g., 60"
+                            disabled={isLoading}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="space-y-3 md:hidden">
+                {students.map((student) => (
+                  <div key={student.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{student.name}</p>
+                        <p className="text-xs text-gray-500">{student.student_number || 'No student ID'}</p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Class Score</label>
+                          <Input
+                            type="number"
+                            value={scores[student.id]?.classScore ?? ''}
+                            onChange={e => handleScoreChange(student.id, 'classScore', e.target.value)}
+                            placeholder="e.g., 40"
+                            disabled={isLoading}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Exam Score</label>
+                          <Input
+                            type="number"
+                            value={scores[student.id]?.examScore ?? ''}
+                            onChange={e => handleScoreChange(student.id, 'examScore', e.target.value)}
+                            placeholder="e.g., 60"
+                            disabled={isLoading}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Button className="w-full sm:w-auto" onClick={handleSaveScores} disabled={isLoading || Object.keys(scores).length === 0}>
                 {isLoading ? 'Saving...' : 'Save All Scores'}
               </Button>
             </>

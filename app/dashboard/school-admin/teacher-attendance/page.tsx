@@ -93,7 +93,7 @@ export default function TeacherAttendancePage() {
     <div className="flex min-h-screen bg-[#f0f1f3]">
       <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName="Admin" />
       <motion.div className="flex-1 space-y-6 p-4 lg:ml-64 lg:p-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">Teacher Attendance Preview</h1>
             <p className="mt-1 text-sm text-gray-500">
@@ -102,24 +102,24 @@ export default function TeacherAttendancePage() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link href="/dashboard/school-admin/teacher-attendance/records">
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="w-full gap-2 sm:w-auto">
                 <Download className="h-4 w-4" />
                 View Records
               </Button>
             </Link>
-            <Button onClick={handleFinalize} disabled={saving || !preview} className="bg-blue-600 text-white hover:bg-blue-700">
+            <Button onClick={handleFinalize} disabled={saving || !preview} className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto">
               {saving ? 'Saving...' : 'Save Daily Attendance'}
             </Button>
           </div>
         </div>
 
-        <div className="mb-6 flex items-center space-x-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:space-x-4 sm:gap-0">
           <Calendar className="h-5 w-5 text-gray-400" />
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="rounded-lg border-gray-200 text-sm focus:border-blue-500 focus:ring-blue-500"
+            className="w-full rounded-lg border-gray-200 text-sm focus:border-blue-500 focus:ring-blue-500 sm:w-auto"
           />
         </div>
 
@@ -148,7 +148,7 @@ export default function TeacherAttendancePage() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="hidden overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm md:block">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50">
@@ -198,6 +198,40 @@ export default function TeacherAttendancePage() {
                   ) : null}
                 </tbody>
               </table>
+            </div>
+
+            <div className="space-y-3 md:hidden">
+              {preview?.preview.map((teacher) => (
+                <div key={teacher.teacher_id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-medium text-gray-900">{teacher.teacher_name}</p>
+                      <p className="text-sm text-gray-600">{teacher.phone}</p>
+                      <p className="break-all text-sm text-gray-500">{teacher.email || 'No email'}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium ${
+                          teacher.status === 'Present'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {teacher.status === 'Present' ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                        {teacher.status}
+                      </span>
+                      <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium ${teacher.hasMarkedSelf ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                        Marked Self: {teacher.hasMarkedSelf ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {preview && preview.preview.length === 0 ? (
+                <div className="rounded-2xl border border-gray-100 bg-white px-6 py-10 text-center text-gray-500 shadow-sm">
+                  No teachers found in the system.
+                </div>
+              ) : null}
             </div>
           </>
         )}

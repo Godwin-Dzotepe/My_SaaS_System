@@ -85,7 +85,7 @@ export default function MyClassPage() {
         animate="visible"
         variants={containerVariants}
       >
-        <div className="p-4 lg:p-8 space-y-6">
+        <div className="space-y-6 p-4 lg:p-8">
           <motion.div 
             variants={itemVariants}
             className="flex flex-col md:flex-row md:items-center justify-between gap-4"
@@ -108,9 +108,9 @@ export default function MyClassPage() {
                 <CardHeader>
                   <CardTitle>Students List</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
+                <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
+                  <div className="hidden overflow-x-auto md:block">
+                    <table className="w-full min-w-[680px]">
                       <thead>
                         <tr className="border-b border-gray-200">
                           <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Name</th>
@@ -156,6 +156,39 @@ export default function MyClassPage() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+
+                  <div className="space-y-3 md:hidden">
+                    {teacherClass?.students.map((student, idx) => (
+                      <motion.div
+                        key={student.id}
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 + idx * 0.05 }}
+                        className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-sm font-medium text-white">
+                            {student.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-gray-900">{student.name}</p>
+                              <Badge variant={student.status === 'active' ? 'success' : 'default'}>
+                                {student.status}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Phone className="h-4 w-4 text-gray-400" />
+                              <span className="break-all">{student.parent_phone}</span>
+                            </div>
+                            <button className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                              View Profile
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
