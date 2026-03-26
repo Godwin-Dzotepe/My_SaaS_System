@@ -9,6 +9,7 @@ import { PARENT_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { MessageDialog } from '@/components/ui/message-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface ReportScore {
@@ -16,6 +17,8 @@ interface ReportScore {
   classScore: number | null;
   examScore: number | null;
   totalScore: number | null;
+  behavior: string | null;
+  teacherAdvice: string | null;
   grade: string | null;
   remark: string | null;
   subject: {
@@ -72,6 +75,7 @@ export default function ChildResultsPage() {
   const [selectedYear, setSelectedYear] = React.useState('');
   const [selectedTerm, setSelectedTerm] = React.useState('');
   const [downloading, setDownloading] = React.useState(false);
+  const [downloadErrorMessage, setDownloadErrorMessage] = React.useState('');
 
   const fetchReport = React.useCallback(async (academicYear?: string, term?: string) => {
     const firstLoad = academicYear === undefined && term === undefined;
@@ -128,6 +132,8 @@ export default function ChildResultsPage() {
           <td>${score.totalScore ?? 'N/A'}</td>
           <td>${escapeHtml(score.grade ?? 'N/A')}</td>
           <td>${escapeHtml(score.remark ?? 'N/A')}</td>
+          <td>${escapeHtml(score.behavior ?? 'N/A')}</td>
+          <td>${escapeHtml(score.teacherAdvice ?? 'N/A')}</td>
         </tr>
       `).join('');
 
@@ -190,10 +196,12 @@ export default function ChildResultsPage() {
                   <th>Total</th>
                   <th>Grade</th>
                   <th>Remark</th>
+                  <th>Behavior</th>
+                  <th>Teacher Advice</th>
                 </tr>
               </thead>
               <tbody>
-                ${rows || '<tr><td colspan="6">No results available for this period.</td></tr>'}
+                ${rows || '<tr><td colspan="8">No results available for this period.</td></tr>'}
               </tbody>
             </table>
           </body>
@@ -212,7 +220,7 @@ export default function ChildResultsPage() {
       };
     } catch (downloadError) {
       console.error(downloadError);
-      alert(downloadError instanceof Error ? downloadError.message : 'Failed to prepare the PDF download.');
+      setDownloadErrorMessage(downloadError instanceof Error ? downloadError.message : 'Failed to prepare the PDF download.');
     } finally {
       setDownloading(false);
     }
@@ -349,6 +357,8 @@ export default function ChildResultsPage() {
                               <TableHead>Total</TableHead>
                               <TableHead>Grade</TableHead>
                               <TableHead>Remark</TableHead>
+                              <TableHead>Behavior</TableHead>
+                              <TableHead>Teacher Advice</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -364,6 +374,8 @@ export default function ChildResultsPage() {
                                   </span>
                                 </TableCell>
                                 <TableCell className="text-gray-500">{score.remark ?? 'N/A'}</TableCell>
+                                <TableCell className="text-gray-500">{score.behavior ?? 'N/A'}</TableCell>
+                                <TableCell className="text-gray-500">{score.teacherAdvice ?? 'N/A'}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -387,6 +399,13 @@ export default function ChildResultsPage() {
           </div>
         )}
       </div>
+      <MessageDialog
+        isOpen={Boolean(downloadErrorMessage)}
+        onClose={() => setDownloadErrorMessage('')}
+        title="Download Problem"
+        message={downloadErrorMessage}
+        tone="error"
+      />
     </div>
   );
 }

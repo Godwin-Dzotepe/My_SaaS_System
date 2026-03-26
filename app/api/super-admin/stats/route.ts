@@ -26,18 +26,21 @@ export async function GET() {
 
     // Get schools with their student and teacher counts
     const schoolsData = await prisma.school.findMany({
-      include: {
+      select: {
+        id: true,
+        school_name: true,
+        created_at: true,
         _count: {
           select: {
             students: true,
             users: true, // This includes all users (admin, teachers, etc.)
-          }
-        }
+          },
+        },
       },
       take: 5,
       orderBy: {
-        created_at: 'desc'
-      }
+        created_at: 'desc',
+      },
     });
 
     return NextResponse.json({

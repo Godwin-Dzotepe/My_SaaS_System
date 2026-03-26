@@ -101,7 +101,7 @@ export default function TeacherDashboard() {
       
       setAttendanceMarked(true);
     } catch (err: any) {
-      alert(err.message);
+      setError(err.message);
     } finally {
       setIsMarkingAttendance(false);
     }
@@ -174,8 +174,11 @@ export default function TeacherDashboard() {
            <Link href="/dashboard/teacher/attendance">
               <Button className="bg-[#3f7afc] hover:bg-[#2d6ae0] text-white shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">Mark Student Attendance</Button>
            </Link>
-           <Link href="/dashboard/teacher/scores">
+           <Link href="/dashboard/teacher/scoring">
               <Button variant="outline" className="border-[#3f7afc] text-[#3f7afc] hover:bg-[#3f7afc] hover:text-white shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 bg-white">Record Scores</Button>
+           </Link>
+           <Link href="/dashboard/teacher/scores">
+              <Button variant="outline" className="border-emerald-500 text-emerald-600 hover:bg-emerald-600 hover:text-white shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 bg-white">View Scores</Button>
            </Link>
         </motion.div>
 

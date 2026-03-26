@@ -39,6 +39,11 @@ interface AcademicPeriod {
   term: string;
 }
 
+interface SchoolClass {
+  id: string;
+  class_name: string;
+}
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -63,6 +68,10 @@ export default function GradingConfigurationPage() {
   const [deletingPeriodId, setDeletingPeriodId] = useState<string | null>(null);
   const [schoolId, setSchoolId] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [classes, setClasses] = useState<SchoolClass[]>([]);
+  const [publishForm, setPublishForm] = useState({ class_id: '', academic_year: '', term: '' });
+  const [publishingResults, setPublishingResults] = useState(false);
+  const [publishFeedback, setPublishFeedback] = useState('');
 
   useEffect(() => {
     const initializePage = async () => {
@@ -82,7 +91,7 @@ export default function GradingConfigurationPage() {
         }
 
         setSchoolId(sId);
-        await Promise.all([loadGradingConfig(sId), loadAcademicPeriods()]);
+        await Promise.all([loadGradingConfig(sId), loadAcademicPeriods(), loadClasses()]);
       } catch (error) {
         console.error('Error initializing grading page:', error);
         setErrorMessage(error instanceof Error ? error.message : 'Failed to load grading configuration.');
@@ -144,9 +153,34 @@ export default function GradingConfigurationPage() {
         academic_year: current.academic_year || periods[0]?.academic_year || '',
         term: current.term || periods[0]?.term || 'Term 1',
       }));
+      setPublishForm((current) => ({
+        class_id: current.class_id,
+        academic_year: current.academic_year || periods[0]?.academic_year || '',
+        term: current.term || periods[0]?.term || 'Term 1',
+      }));
     } catch (error) {
       console.error('Error loading academic periods:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to load academic periods.');
+    }
+  };
+
+  const loadClasses = async () => {
+    try {
+      const res = await fetch('/api/classes');
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load classes.');
+      }
+
+      const nextClasses = Array.isArray(data) ? data : [];
+      setClasses(nextClasses);
+      setPublishForm((current) => ({
+        ...current,
+        class_id: current.class_id || nextClasses[0]?.id || '',
+      }));
+    } catch (error) {
+      console.error('Error loading classes:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to load classes.');
     }
   };
 
@@ -269,6 +303,39 @@ export default function GradingConfigurationPage() {
     }
   };
 
+  const handlePublishResults = async () => {
+    if (!publishForm.class_id || !publishForm.academic_year || !publishForm.term) {
+      setErrorMessage('Select a class, academic year, and term before publishing results.');
+      return;
+    }
+
+    try {
+      setPublishingResults(true);
+      setErrorMessage('');
+      setPublishFeedback('');
+
+      const response = await fetch('/api/scores/publish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(publishForm),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to publish results.');
+      }
+
+      setPublishFeedback(`Published ${data?.term || publishForm.term} ${data?.academic_year || publishForm.academic_year} results for ${data?.class_name || 'the selected class'}.`);
+    } catch (error) {
+      console.error('Error publishing results:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to publish results.');
+    } finally {
+      setPublishingResults(false);
+    }
+  };
+
   const handleDeleteAcademicPeriod = async (periodId: string) => {
     try {
       setDeletingPeriodId(periodId);
@@ -320,6 +387,65 @@ export default function GradingConfigurationPage() {
               {errorMessage}
             </motion.div>
           ) : null}
+
+          {publishFeedback ? (
+            <motion.div variants={itemVariants}>
+              <Card className="border-emerald-200 bg-emerald-50">
+                <CardContent className="p-4 text-sm text-emerald-700">{publishFeedback}</CardContent>
+              </Card>
+            </motion.div>
+          ) : null}
+
+          <motion.div variants={itemVariants}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Publish Results</CardTitle>
+                <CardDescription>Notify parents when a class result set is ready. Parents will only see published result periods.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <select
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2"
+                  value={publishForm.class_id}
+                  onChange={(e) => setPublishForm((current) => ({ ...current, class_id: e.target.value }))}
+                >
+                  <option value="">Select class</option>
+                  {classes.map((classRoom) => (
+                    <option key={classRoom.id} value={classRoom.id}>
+                      {classRoom.class_name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2"
+                  value={publishForm.academic_year}
+                  onChange={(e) => setPublishForm((current) => ({ ...current, academic_year: e.target.value }))}
+                >
+                  <option value="">Select academic year</option>
+                  {academicPeriods.map((period) => (
+                    <option key={`${period.id}-year`} value={period.academic_year}>
+                      {period.academic_year}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2"
+                  value={publishForm.term}
+                  onChange={(e) => setPublishForm((current) => ({ ...current, term: e.target.value }))}
+                >
+                  <option value="">Select term</option>
+                  {[...new Set(academicPeriods.map((period) => period.term))].map((term) => (
+                    <option key={term} value={term}>
+                      {term}
+                    </option>
+                  ))}
+                </select>
+                <Button onClick={handlePublishResults} disabled={publishingResults} className="gap-2">
+                  {publishingResults ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Publish Results
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
 
           {/* Info Banner */}
           <motion.div variants={itemVariants} className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">

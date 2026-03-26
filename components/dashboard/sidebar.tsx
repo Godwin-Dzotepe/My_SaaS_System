@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SchoolMark } from '@/components/branding/school-mark';
 
 interface SidebarItem {
   label: string;
@@ -50,6 +51,7 @@ export function Sidebar({ items, userRole, userName }: SidebarProps) {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
   const [brandName, setBrandName] = React.useState('FutureLink');
+  const [brandLogoUrl, setBrandLogoUrl] = React.useState<string | null>(null);
   const [notifications, setNotifications] = React.useState<SidebarNotification[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
@@ -58,36 +60,23 @@ export function Sidebar({ items, userRole, userName }: SidebarProps) {
 
   React.useEffect(() => {
     let isMounted = true;
-    const cacheKey = `sidebar-brand-${userRole}`;
-
-    if (typeof window !== 'undefined') {
-      const cachedBrandName = window.sessionStorage.getItem(cacheKey);
-      if (cachedBrandName) {
-        setBrandName(cachedBrandName);
-        return () => {
-          isMounted = false;
-        };
-      }
-    }
 
     const loadBrandName = async () => {
       try {
-        const response = await fetch('/api/auth/me');
+        const response = await fetch('/api/auth/me', { cache: 'no-store' });
         if (!response.ok) return;
 
         const data = await response.json();
         const sessionUser = data?.user;
         const schoolName = sessionUser?.schoolName;
+        const schoolLogoUrl = sessionUser?.schoolLogoUrl || null;
         const role = sessionUser?.role || userRole;
 
         if (!isMounted) return;
 
         const resolvedBrandName = role !== 'super_admin' && schoolName ? schoolName : 'FutureLink';
         setBrandName(resolvedBrandName);
-
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.setItem(cacheKey, resolvedBrandName);
-        }
+        setBrandLogoUrl(role !== 'super_admin' ? schoolLogoUrl : null);
       } catch (error) {
         console.error('Failed to load dashboard brand name:', error);
       }
@@ -223,14 +212,20 @@ export function Sidebar({ items, userRole, userName }: SidebarProps) {
         )}
       >
         <div className="flex h-full flex-col">
-          <div className="flex h-16 items-center border-b border-blue-600 px-6">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white">
-                <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
+          <div className="flex min-h-16 items-center border-b border-blue-600 px-6 py-3">
+            <div className="flex items-center gap-3">
+              <SchoolMark
+                logoUrl={brandLogoUrl}
+                schoolName={brandName}
+                className="h-11 w-11 rounded-2xl border border-blue-100/30 bg-white"
+                imageClassName="object-contain p-1.5"
+              />
+              <div className="min-w-0">
+                <span className="block truncate text-base font-bold text-white">{brandName}</span>
+                <span className="block text-[11px] uppercase tracking-[0.25em] text-blue-200">
+                  {userRole === 'super_admin' ? 'Platform' : 'School Portal'}
+                </span>
               </div>
-              <span className="truncate text-xl font-bold text-white">{brandName}</span>
             </div>
           </div>
 
@@ -355,3 +350,4 @@ export function Sidebar({ items, userRole, userName }: SidebarProps) {
     </>
   );
 }
+

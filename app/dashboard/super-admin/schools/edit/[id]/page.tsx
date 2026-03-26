@@ -2,19 +2,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, ImagePlus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { SUPER_ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { motion } from 'framer-motion';
+import { SchoolMark } from '@/components/branding/school-mark';
 
 interface School {
   id: string;
   school_name: string;
   address: string;
   phone: string;
+  sms_username?: string | null;
+  logo_url?: string | null;
 }
 
 export default function EditSchoolPage() {
@@ -27,11 +30,15 @@ export default function EditSchoolPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [clearLogo, setClearLogo] = useState(false);
 
   const [formData, setFormData] = useState({
     school_name: '',
     address: '',
     phone: '',
+    sms_username: '',
   });
 
   useEffect(() => {
@@ -41,10 +48,12 @@ export default function EditSchoolPage() {
         if (schoolResponse.ok) {
           const schoolInfo = await schoolResponse.json();
           setSchool(schoolInfo);
+          setLogoPreview(schoolInfo.logo_url || null);
           setFormData({
             school_name: schoolInfo.school_name,
             address: schoolInfo.address,
             phone: schoolInfo.phone,
+            sms_username: schoolInfo.sms_username || '',
           });
         } else {
           setError('Failed to load school data');
@@ -62,7 +71,7 @@ export default function EditSchoolPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -75,22 +84,30 @@ export default function EditSchoolPage() {
     setSuccess('');
 
     try {
+      const payload = new FormData();
+      payload.append('school_name', formData.school_name);
+      payload.append('address', formData.address);
+      payload.append('phone', formData.phone);
+      payload.append('sms_username', formData.sms_username);
+      payload.append('clearLogo', clearLogo ? 'true' : 'false');
+      if (logoFile) {
+        payload.append('schoolLogo', logoFile);
+      }
+
       const response = await fetch(`/api/schools/${schoolId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        body: payload,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update school');
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to update school');
       }
 
       setSuccess('School updated successfully');
       setTimeout(() => {
         router.push('/dashboard/super-admin/schools');
-      }, 1500);
+      }, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error saving school');
     } finally {
@@ -102,9 +119,9 @@ export default function EditSchoolPage() {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar items={SUPER_ADMIN_SIDEBAR_ITEMS} userRole="super-admin" userName="System Administrator" />
-        <div className="flex-1 lg:ml-64 flex items-center justify-center">
+        <div className="flex flex-1 items-center justify-center lg:ml-64">
           <div className="flex flex-col items-center gap-2">
-            <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
             <p className="text-gray-500">Loading school data...</p>
           </div>
         </div>
@@ -122,8 +139,7 @@ export default function EditSchoolPage() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
-        <div className="p-4 lg:p-8 space-y-6">
-          {/* Header */}
+        <div className="space-y-6 p-4 lg:p-8">
           <div className="flex items-center gap-4">
             <Link href="/dashboard/super-admin/schools">
               <Button variant="ghost" size="sm" className="gap-2">
@@ -133,115 +149,152 @@ export default function EditSchoolPage() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Edit School</h1>
-              <p className="text-gray-600">Update school information</p>
+              <p className="text-gray-600">Update school branding, SMS username, and contact information.</p>
             </div>
           </div>
 
-          {/* Error Alert */}
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800"
-            >
+          {error ? (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
               {error}
             </motion.div>
-          )}
+          ) : null}
 
-          {/* Success Alert */}
-          {success && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-800"
-            >
+          {success ? (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
               {success}
             </motion.div>
-          )}
+          ) : null}
 
-          {/* Form Card */}
-          <Card>
-            <CardContent className="p-6">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  {/* School Name */}
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    School Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="school_name"
-                    value={formData.school_name}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    placeholder="Enter school name"
-                  />
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <Card>
+              <CardContent className="p-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">School Name *</label>
+                    <input
+                      type="text"
+                      name="school_name"
+                      value={formData.school_name}
+                      onChange={handleChange}
+                      required
+                      className="w-full rounded-lg border border-gray-200 px-4 py-2 outline-none transition-all focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter school name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">Address *</label>
+                    <textarea
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                      required
+                      rows={3}
+                      className="w-full resize-none rounded-lg border border-gray-200 px-4 py-2 outline-none transition-all focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter school address"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">Phone *</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      required
+                      className="w-full rounded-lg border border-gray-200 px-4 py-2 outline-none transition-all focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter phone number"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">School SMS Username</label>
+                    <input
+                      type="text"
+                      name="sms_username"
+                      value={formData.sms_username}
+                      onChange={handleChange}
+                      className="w-full rounded-lg border border-gray-200 px-4 py-2 outline-none transition-all focus:ring-2 focus:ring-blue-500"
+                      placeholder="Provider username for this school"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-3 border-t pt-6">
+                    <Button type="button" variant="outline" onClick={() => router.back()} disabled={saving}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={saving} className="gap-2 bg-blue-600 hover:bg-blue-700">
+                      {saving ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          Save Changes
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="space-y-5 p-6">
+                <div className="text-center">
+                  <p className="text-lg font-semibold text-gray-900">Branding</p>
+                  <p className="text-sm text-gray-500">This logo will be used in the branded preloader and dashboard header areas.</p>
                 </div>
 
-                <div>
-                  {/* Address */}
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Address *
-                  </label>
-                  <textarea
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    required
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
-                    placeholder="Enter school address"
-                  />
+                <div className="rounded-3xl border border-dashed border-gray-300 bg-gray-50 p-6">
+                  <div className="flex flex-col items-center gap-4">
+                    <SchoolMark
+                      logoUrl={clearLogo ? null : logoPreview}
+                      schoolName={formData.school_name || school?.school_name}
+                      className="h-28 w-28 rounded-[30px] border border-gray-200"
+                      imageClassName="object-contain p-3"
+                    />
+                    <div className="flex flex-wrap justify-center gap-3">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                        <ImagePlus className="h-4 w-4" />
+                        Upload New Logo
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0] || null;
+                            setLogoFile(file);
+                            setClearLogo(false);
+                            if (file) {
+                              setLogoPreview(URL.createObjectURL(file));
+                            }
+                          }}
+                        />
+                      </label>
+                      {(logoPreview || school?.logo_url) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLogoFile(null);
+                            setLogoPreview(null);
+                            setClearLogo(true);
+                          }}
+                          className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Remove Logo
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-
-                <div>
-                  {/* Phone */}
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone *
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    placeholder="Enter phone number"
-                  />
-                </div>
-
-                {/* Submit Buttons */}
-                <div className="flex gap-3 justify-end pt-6 border-t">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => router.back()}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={saving}
-                    className="gap-2 bg-blue-600 hover:bg-blue-700"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4" />
-                        Save Changes
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </motion.div>
     </div>

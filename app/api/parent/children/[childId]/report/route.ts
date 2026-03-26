@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withAuth } from '@/lib/api-auth';
 import { mergeAcademicPeriods } from '@/lib/academic-periods';
+import { hasPublishedResult, parseResultPublishPayload, RESULT_PUBLISHED_NOTIFICATION } from '@/lib/result-publishing';
 
 export const GET = withAuth(
   async ({ session, params, req }) => {
@@ -50,6 +51,17 @@ export const GET = withAuth(
         return NextResponse.json({ error: 'Child not found.' }, { status: 404 });
       }
 
+      const releaseNotifications = await prisma.appNotification.findMany({
+        where: {
+          user_id: session.user.id,
+          title: RESULT_PUBLISHED_NOTIFICATION,
+        },
+        select: {
+          title: true,
+          body: true,
+        },
+      });
+
       const academicPeriodModel = (prisma as any).academicPeriod;
 
       const [configuredPeriods, scorePeriods] = await Promise.all([
@@ -77,13 +89,26 @@ export const GET = withAuth(
         }),
       ]);
 
-      const availablePeriods = mergeAcademicPeriods(configuredPeriods, scorePeriods);
+      const publishedPeriods = releaseNotifications
+        .map((notification) => parseResultPublishPayload(notification.body))
+        .filter((payload): payload is NonNullable<ReturnType<typeof parseResultPublishPayload>> => Boolean(payload))
+        .filter((payload) => payload.studentId === childId)
+        .map((payload) => ({
+          academic_year: payload.academicYear,
+          term: payload.term,
+        }));
+
+      const availablePeriods = mergeAcademicPeriods(configuredPeriods, scorePeriods).filter((period) =>
+        publishedPeriods.some(
+          (published) => published.academic_year === period.academic_year && published.term === period.term
+        )
+      );
 
       const { searchParams } = new URL(req.url);
       const selectedAcademicYear = searchParams.get('academic_year') || availablePeriods[0]?.academic_year || '';
       const selectedTerm = searchParams.get('term') || availablePeriods[0]?.term || '';
 
-      const scores = selectedAcademicYear && selectedTerm
+      const scores = selectedAcademicYear && selectedTerm && hasPublishedResult(releaseNotifications, childId, selectedAcademicYear, selectedTerm)
         ? await prisma.score.findMany({
             where: {
               student_id: childId,
@@ -95,6 +120,8 @@ export const GET = withAuth(
               classScore: true,
               examScore: true,
               totalScore: true,
+              behavior: true,
+              teacherAdvice: true,
               grade: true,
               remark: true,
               subject: {

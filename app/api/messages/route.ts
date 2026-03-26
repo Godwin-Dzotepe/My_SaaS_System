@@ -4,6 +4,7 @@ import { withAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
 import { getRecipientsForMessage } from '@/lib/messaging';
 import type { Role } from '@prisma/client';
+import { sendSMS } from '@/lib/sms-service';
 
 const createMessageSchema = z.object({
   title: z.string().min(1, 'Title is required.'),
@@ -110,6 +111,7 @@ export const POST = withAuth(
           school: {
             select: {
               school_name: true,
+              sms_username: true,
             },
           },
         },
@@ -150,6 +152,29 @@ export const POST = withAuth(
               : senderUser?.school?.school_name || recipient.school?.school_name || 'School',
         })),
       });
+
+      if (validation.data.recipient_role === 'parent') {
+        const schoolName =
+          sender.role === 'super_admin'
+            ? 'FutureLink'
+            : senderUser?.school?.school_name || recipients[0]?.school?.school_name || 'School';
+
+        const uniquePhones = [...new Set(recipients.map((recipient: any) => recipient.phone).filter(Boolean))];
+
+        await Promise.all(
+          uniquePhones.map((phone) =>
+            sendSMS({
+              phone,
+              message: `${schoolName}: ${validation.data.title.trim()} - ${validation.data.body.trim()}`,
+              senderName: schoolName,
+              smsUsername: senderUser?.school?.sms_username,
+            }).catch((smsError) => {
+              console.warn('[Messages] Parent SMS failed:', smsError);
+              return null;
+            })
+          )
+        );
+      }
 
       return NextResponse.json({
         success: true,

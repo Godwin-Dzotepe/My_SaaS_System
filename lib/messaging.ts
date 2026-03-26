@@ -19,6 +19,7 @@ export async function getRecipientsForMessage(sender: {
       select: {
         id: true,
         name: true,
+        phone: true,
         role: true,
         school_id: true,
         school: {
@@ -42,6 +43,7 @@ export async function getRecipientsForMessage(sender: {
     select: {
       id: true,
       name: true,
+      phone: true,
       role: true,
       school_id: true,
       school: {

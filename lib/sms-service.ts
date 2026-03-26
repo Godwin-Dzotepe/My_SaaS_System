@@ -1,17 +1,25 @@
 /**
  * SMS Service - Handles SMS sending for OTP and notifications
- * 
+ *
  * SECURITY: SMS failures in OTP flow should return errors to prevent
  * account enumeration. Non-critical SMS (welcome messages) should not
  * break the main flow.
- * 
- * IMPORTANT: Add your SMS provider credentials to .env
- * Supported: Twilio, AWS SNS, or any HTTP-based SMS API
  */
 
 interface SendSMSParams {
   phone: string;
   message: string;
+  senderName?: string | null;
+  smsUsername?: string | null;
+}
+
+interface PasswordSMSParams {
+  phone: string;
+  password: string;
+  schoolName: string;
+  smsUsername?: string | null;
+  parentName?: string | null;
+  childName?: string | null;
 }
 
 interface SMSResult {
@@ -20,206 +28,285 @@ interface SMSResult {
   error?: string;
 }
 
+function safeParseJson<T>(value: string): T | null {
+  if (!value) return null;
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
+function buildSmsProviderError(status: number, rawText: string, parsedBody: unknown): string {
+  const data = parsedBody as
+    | {
+        errorMessage?: string;
+        message?: string;
+        SMSMessageData?: {
+          Message?: string;
+          Recipients?: Array<{ status?: string }>;
+        };
+      }
+    | null;
+
+  const providerMessage =
+    data?.SMSMessageData?.Recipients?.[0]?.status ||
+    data?.SMSMessageData?.Message ||
+    data?.errorMessage ||
+    data?.message ||
+    rawText;
+
+  if (providerMessage) {
+    return `SMS provider returned ${status}: ${providerMessage}`;
+  }
+
+  return `SMS provider returned ${status}`;
+}
+
+async function sendViaHttpSmsProvider({
+  apiKey,
+  phone,
+  message,
+  senderId,
+  endpoint,
+}: {
+  apiKey: string;
+  phone: string;
+  message: string;
+  senderId?: string;
+  endpoint: string;
+}): Promise<SMSResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        key: apiKey,
+        api_key: apiKey,
+        recipient: [phone],
+        recipients: [phone],
+        to: [phone],
+        message,
+        msg: message,
+        sender: senderId,
+        sender_id: senderId,
+        from: senderId,
+      }),
+      signal: controller.signal,
+    });
+
+    const rawText = await response.text().catch(() => '');
+    const data = safeParseJson<{
+      errorMessage?: string;
+      message?: string;
+      SMSMessageData?: {
+        Message?: string;
+        Recipients?: Array<{
+          statusCode?: string;
+          status?: string;
+          messageId?: string;
+        }>;
+      };
+    }>(rawText);
+    const recipient = data?.SMSMessageData?.Recipients?.[0];
+
+    if (response.ok && recipient?.statusCode === '0') {
+      return {
+        success: true,
+        messageId: recipient.messageId,
+      };
+    }
+
+    return {
+      success: false,
+      error: buildSmsProviderError(response.status, rawText, data),
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return {
+        success: false,
+        error: 'SMS provider timed out. Please try again.',
+      };
+    }
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'HTTP SMS provider failed',
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function sanitizePhone(phone: string): string {
+  return phone.trim().replace(/[\s\-().]/g, '');
+}
+
+function formatPhoneForProvider(phone: string): string {
+  const sanitized = sanitizePhone(phone);
+  const defaultCountryCode = (process.env.SMS_DEFAULT_COUNTRY_CODE || '').trim();
+
+  if (sanitized.startsWith('+')) return sanitized;
+  if (sanitized.startsWith('00')) return `+${sanitized.slice(2)}`;
+
+  if (defaultCountryCode && /^0\d+$/.test(sanitized)) {
+    return `${defaultCountryCode}${sanitized.slice(1)}`;
+  }
+
+  if (defaultCountryCode && /^\d+$/.test(sanitized)) {
+    return `${defaultCountryCode}${sanitized}`;
+  }
+
+  return sanitized;
+}
+
+function formatSenderName(senderName?: string | null): string | undefined {
+  const trimmed = senderName?.trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, 11);
+}
+
 /**
  * Generate a random OTP (6 digits)
  * Uses crypto-safe random number generation
  */
 export function generateOTP(): string {
-  // Use crypto-safe random numbers
   const array = new Uint32Array(1);
   crypto.getRandomValues(array);
   const otp = (array[0] % 900000) + 100000;
   return otp.toString();
 }
 
-/**
- * Hash OTP using bcrypt for secure storage
- * 
- * @param otp - Plain text OTP
- * @returns Hashed OTP
- */
 export async function hashOTP(otp: string): Promise<string> {
   const bcrypt = await import('bcryptjs');
-  // Use cost factor of 10 for good security/performance balance
   return bcrypt.hash(otp, 10);
 }
 
-/**
- * Verify OTP against hashed value
- * 
- * @param otp - Plain text OTP to verify
- * @param hashedOTP - Stored hashed OTP
- * @returns True if OTP matches
- */
 export async function verifyOTP(otp: string, hashedOTP: string): Promise<boolean> {
   const bcrypt = await import('bcryptjs');
   return bcrypt.compare(otp, hashedOTP);
 }
 
 /**
- * Send SMS via configured provider
- * 
- * CRITICAL: For OTP SMS, failure should return error to the caller
- * so they can handle it appropriately (e.g., retry or show error).
- * 
- * @param params - Phone number and message
- * @returns SMS result with success status and messageId/error
+ * Send SMS via configured provider.
+ * Supports:
+ * - Nmolify/MNotify HTTP API when SMS_API_KEY is present
+ * - Development console fallback in development mode
  */
-export async function sendSMS({ phone, message }: SendSMSParams): Promise<SMSResult> {
+export async function sendSMS({ phone, message, senderName, smsUsername }: SendSMSParams): Promise<SMSResult> {
   try {
-    // Validate phone number format
-    if (!phone || phone.length < 10) {
+    const formattedPhone = formatPhoneForProvider(phone);
+    const formattedSenderName = formatSenderName(senderName);
+    const resolvedSmsUsername = (smsUsername || process.env.SMS_USERNAME || '').trim();
+    const resolvedSenderId = (resolvedSmsUsername || formattedSenderName || '').trim();
+    const hasApiKey = Boolean(process.env.SMS_API_KEY);
+    const mnotifyEndpoint = (
+      process.env.NMOLIFY_API_URL ||
+      process.env.MNOTIFY_API_URL ||
+      'https://api.mnotify.com/api/sms/quick'
+    ).trim();
+
+    if (!formattedPhone || formattedPhone.replace(/\D/g, '').length < 10) {
       return {
         success: false,
-        error: 'Invalid phone number format'
+        error: 'Invalid phone number format',
       };
     }
 
-    // OPTION 1: Twilio (uncomment and configure if using)
-    /*
-    const twilio = require('twilio');
-    const client = twilio(
-      process.env.TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_AUTH_TOKEN
-    );
-    
-    const result = await client.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: phone
-    });
-    
-    return {
-      success: true,
-      messageId: result.sid
-    };
-    */
+    if (hasApiKey && resolvedSmsUsername) {
+      try {
+        const primaryResult = await sendViaHttpSmsProvider({
+          apiKey: process.env.SMS_API_KEY!,
+          phone: formattedPhone,
+          message,
+          senderId: resolvedSenderId || undefined,
+          endpoint: mnotifyEndpoint,
+        });
 
-    // OPTION 2: AWS SNS (uncomment and configure if using)
-    /*
-    const AWS = require('aws-sdk');
-    const sns = new AWS.SNS({
-      region: process.env.AWS_REGION
-    });
-    
-    const params = {
-      Message: message,
-      PhoneNumber: phone
-    };
-    
-    const result = await sns.publish(params).promise();
-    
-    return {
-      success: true,
-      messageId: result.MessageId
-    };
-    */
+        if (primaryResult.success) {
+          return primaryResult;
+        }
 
-    // OPTION 3: HTTP-based SMS API (e.g., Nexmo, Africa's Talking)
-    /*
-    const response = await fetch('https://api.africaistalk.com/version1/messaging', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-        'apikey': process.env.SMS_API_KEY!
-      },
-      body: new URLSearchParams({
-        username: process.env.SMS_USERNAME!,
-        recipients: phone,
-        message: message
-      })
-    });
+        return primaryResult;
+      } catch (httpSmsError) {
+        console.error('[SMS] Nmolify/MNotify send failed:', httpSmsError);
+        return {
+          success: false,
+          error: httpSmsError instanceof Error ? httpSmsError.message : 'Nmolify/MNotify SMS provider failed',
+        };
+      }
+    }
 
-    const data = await response.json();
-    
-    if (data.SMSMessageData?.Recipients?.[0]?.statusCode === '0') {
+    if (hasApiKey && !resolvedSmsUsername) {
       return {
-        success: true,
-        messageId: data.SMSMessageData.Recipients[0].messageId
+        success: false,
+        error: 'SMS username is missing. Add SMS_USERNAME in env or save the school SMS username before sending.',
       };
     }
-    
-    return {
-      success: false,
-      error: data.SMSMessageData?.Recipients?.[0]?.status || 'Failed to send SMS'
-    };
-    */
 
-    // DEVELOPMENT MODE: Log to console instead of sending
     if (process.env.NODE_ENV === 'development') {
-      console.log(`📱 [SMS SENT] Phone: ${phone}`);
-      console.log(`📝 Message: ${message}`);
+      console.log(`[SMS SENT] Phone: ${formattedPhone}`);
+      if (formattedSenderName) {
+        console.log(`[SMS SENDER] ${formattedSenderName}`);
+      }
+      console.log(`[SMS MESSAGE] ${message}`);
       return {
         success: true,
-        messageId: `dev-${Date.now()}`
+        messageId: `dev-${Date.now()}`,
       };
     }
 
-    // Production fallback - Return error for critical flows
-    console.error('❌ SMS service not configured. Please set up an SMS provider.');
+    console.error('[SMS] SMS service not configured. Add Nmolify/MNotify SMS API credentials.');
     return {
       success: false,
-      error: 'SMS service not configured. Please contact support.'
+      error: 'SMS service not configured. Add Nmolify/MNotify SMS provider credentials in the environment.',
     };
-
   } catch (error) {
     console.error('Error sending SMS:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error sending SMS'
+      error: error instanceof Error ? error.message : 'Unknown error sending SMS',
     };
   }
 }
 
-/**
- * Send OTP SMS to parent
- * 
- * CRITICAL: This should return error if SMS fails, as OTP is a critical
- * authentication flow. The caller should handle failures appropriately.
- * 
- * @param phone - Recipient phone number
- * @param otp - OTP to send
- * @returns SMS result
- */
 export async function sendOTPSMS(phone: string, otp: string): Promise<SMSResult> {
   const message = `Your School Management System login code is: ${otp}. Valid for 10 minutes. Do not share this code.`;
   return sendSMS({ phone, message });
 }
 
-/**
- * Send welcome SMS (non-critical)
- * 
- * This should NOT break the main flow if it fails - it's just a notification.
- * 
- * @param phone - Recipient phone number
- * @param schoolName - School name for personalization
- * @returns SMS result (caller should not throw on failure)
- */
 export async function sendWelcomeSMS(phone: string, schoolName: string): Promise<SMSResult> {
   const message = `Welcome to ${schoolName} Parent Portal! Your account has been set up. Contact the school for login assistance.`;
-  
+
   try {
-    return await sendSMS({ phone, message });
+    return await sendSMS({ phone, message, senderName: schoolName });
   } catch (error) {
-    // Log but don't throw - welcome SMS is not critical
     console.error('[SMS] Welcome SMS failed:', error);
     return { success: false, error: 'SMS send failed (non-critical)' };
   }
 }
 
-/**
- * Send password notification SMS (non-critical)
- * 
- * @param phone - Recipient phone number
- * @param schoolName - School name for personalization
- * @returns SMS result
- */
-export async function sendPasswordSMS(phone: string, password: string, schoolName: string): Promise<SMSResult> {
-  const message = `${schoolName}: Your login password is ${password}. Please change it after first login. Do not share this code.`;
-  
+export async function sendPasswordSMS({
+  phone,
+  password,
+  schoolName,
+  smsUsername,
+  parentName,
+  childName,
+}: PasswordSMSParams): Promise<SMSResult> {
+  const safeParentName = (parentName || 'Parent').trim();
+  const safeChildName = (childName || 'your child').trim();
+  const message = `Hello ${safeParentName}, your login password for your child ${safeChildName} at ${schoolName} is ${password}. Please change it after first login.`;
+
   try {
-    return await sendSMS({ phone, message });
+    return await sendSMS({ phone, message, senderName: schoolName, smsUsername });
   } catch (error) {
     console.error('[SMS] Password SMS failed:', error);
     return { success: false, error: 'SMS send failed (non-critical)' };

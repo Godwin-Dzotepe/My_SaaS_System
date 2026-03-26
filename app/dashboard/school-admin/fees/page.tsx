@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Edit, Trash, Loader2, RefreshCcw } from 'lucide-react';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 
 interface SchoolClass {
   id: string;
@@ -63,6 +64,7 @@ export default function FeesConfigPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [savingFee, setSavingFee] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
+  const [feeToDelete, setFeeToDelete] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -175,10 +177,6 @@ export default function FeesConfigPage() {
   };
 
   const handleDeleteFee = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this fee?')) {
-      return;
-    }
-
     try {
       setError('');
       setSuccess('');
@@ -195,6 +193,8 @@ export default function FeesConfigPage() {
     } catch (deleteError) {
       console.error(deleteError);
       setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete fee.');
+    } finally {
+      setFeeToDelete(null);
     }
   };
 
@@ -494,7 +494,7 @@ export default function FeesConfigPage() {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 hover:text-red-800"
-                            onClick={() => handleDeleteFee(fee.id)}
+                            onClick={() => setFeeToDelete(fee.id)}
                           >
                             <Trash className="h-4 w-4" />
                           </Button>
@@ -538,7 +538,7 @@ export default function FeesConfigPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 hover:text-red-800"
-                                onClick={() => handleDeleteFee(fee.id)}
+                                onClick={() => setFeeToDelete(fee.id)}
                               >
                                 <Trash className="h-4 w-4" />
                               </Button>
@@ -553,6 +553,14 @@ export default function FeesConfigPage() {
             </CardContent>
           </Card>
         </div>
+        <ConfirmationModal
+          isOpen={Boolean(feeToDelete)}
+          onClose={() => setFeeToDelete(null)}
+          onConfirm={() => feeToDelete && handleDeleteFee(feeToDelete)}
+          title="Delete Fee"
+          message="Are you sure you want to delete this fee configuration? This action cannot be undone."
+          confirmText="Delete Fee"
+        />
       </div>
     </div>
   );

@@ -4,11 +4,13 @@ import { Bell, Search, Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { SchoolMark } from '@/components/branding/school-mark';
 
 export function Navbar() {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [brandName, setBrandName] = useState('FutureLink');
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -28,6 +30,7 @@ export function Navbar() {
             ? sessionUser.schoolName
             : 'FutureLink'
         );
+        setBrandLogoUrl(sessionUser?.role !== 'super_admin' ? sessionUser?.schoolLogoUrl || null : null);
       } catch (error) {
         console.error('Failed to load navbar brand name:', error);
       }
@@ -60,19 +63,27 @@ export function Navbar() {
   };
 
   return (
-    <header className="fixed top-0 z-20 w-full bg-white/80 backdrop-blur-md border-b border-gray-200 lg:pl-64 transition-all">
-      <div className="flex items-center justify-between h-16 px-4 lg:px-8">
+    <header className="fixed top-0 z-20 w-full border-b border-gray-200 bg-white/80 backdrop-blur-md transition-all lg:pl-64">
+      <div className="flex h-16 items-center justify-between px-4 lg:px-8">
         <div className="flex items-center gap-4 lg:hidden">
-          <span className="text-lg font-bold text-gray-900 ml-12 truncate max-w-48">{brandName}</span>
+          <div className="ml-12 flex items-center gap-3 truncate">
+            <SchoolMark
+              logoUrl={brandLogoUrl}
+              schoolName={brandName}
+              className="h-9 w-9 rounded-2xl border border-gray-200"
+              imageClassName="object-contain p-1"
+            />
+            <span className="max-w-40 truncate text-lg font-bold text-gray-900">{brandName}</span>
+          </div>
         </div>
 
-        <div className="hidden lg:flex items-center flex-1 max-w-md">
+        <div className="hidden max-w-md flex-1 items-center lg:flex">
           <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder="Search..."
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50/50"
+              className="w-full rounded-lg border border-gray-300 bg-gray-50/50 py-2 pl-10 pr-4 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>

@@ -50,6 +50,43 @@ function getOptionalString(value: FormDataEntryValue | null | undefined) {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function isMissingSchoolBrandingColumnError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('sms_username') ||
+    message.includes('logo_url') ||
+    message.includes('column') ||
+    message.includes('does not exist') ||
+    message.includes('unknown field')
+  );
+}
+
+async function findSchoolForStudentCreation(schoolId: string) {
+  try {
+    return await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { school_name: true, sms_username: true },
+    });
+  } catch (error) {
+    if (!isMissingSchoolBrandingColumnError(error)) {
+      throw error;
+    }
+
+    const fallbackSchool = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { school_name: true },
+    });
+
+    return fallbackSchool
+      ? {
+          ...fallbackSchool,
+          sms_username: null,
+        }
+      : null;
+  }
+}
+
 async function parseStudentRequest(req: NextRequest) {
   const contentType = req.headers.get('content-type') || '';
 
@@ -213,10 +250,7 @@ export async function POST(req: NextRequest) {
       profileImagePath = await saveProfileImage(imageFile);
     }
 
-    const schoolRecord = await prisma.school.findUnique({
-      where: { id: school_id },
-      select: { school_name: true },
-    });
+    const schoolRecord = await findSchoolForStudentCreation(school_id);
 
     if (!schoolRecord) {
       return NextResponse.json({ error: 'School not found' }, { status: 404 });
@@ -224,9 +258,9 @@ export async function POST(req: NextRequest) {
 
     // 5. Handle Parent Accounts (OPTIONAL) - AUTO PASSWORD + SMS
     let parentUser: any = null;
-    const fatherUser = await ensureParentAccount({ name: father_name, phone: father_phone, schoolId: school_id, schoolName: schoolRecord.school_name });
-    const motherUser = await ensureParentAccount({ name: mother_name, phone: mother_phone, schoolId: school_id, schoolName: schoolRecord.school_name });
-    const guardianUser = await ensureParentAccount({ name: guardian_name, phone: guardian_phone, schoolId: school_id, schoolName: schoolRecord.school_name });
+    const fatherUser = await ensureParentAccount({ name: father_name, phone: father_phone, schoolId: school_id, schoolName: schoolRecord.school_name, schoolSmsUsername: schoolRecord.sms_username, childName: name });
+    const motherUser = await ensureParentAccount({ name: mother_name, phone: mother_phone, schoolId: school_id, schoolName: schoolRecord.school_name, schoolSmsUsername: schoolRecord.sms_username, childName: name });
+    const guardianUser = await ensureParentAccount({ name: guardian_name, phone: guardian_phone, schoolId: school_id, schoolName: schoolRecord.school_name, schoolSmsUsername: schoolRecord.sms_username, childName: name });
 
     if (parent_name && parent_phone) {
       parentUser = await ensureParentAccount({
@@ -235,6 +269,8 @@ export async function POST(req: NextRequest) {
         email: parent_email,
         schoolId: school_id,
         schoolName: schoolRecord.school_name,
+        schoolSmsUsername: schoolRecord.sms_username,
+        childName: name,
       });
     }
 

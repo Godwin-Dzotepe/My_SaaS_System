@@ -20,6 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sidebar } from '@/components/dashboard/sidebar';
+import { MessageDialog } from '@/components/ui/message-dialog';
 
 interface Class {
   id: string;
@@ -45,6 +46,12 @@ export default function NewStudentPage() {
   const [profileImage, setProfileImage] = React.useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = React.useState(0);
   const [generatedParentLogins, setGeneratedParentLogins] = React.useState<Array<{ name: string; phone: string; temporary_password: string | null }>>([]);
+  const [dialogState, setDialogState] = React.useState<{ open: boolean; title: string; message: string; tone: 'success' | 'error' | 'warning' | 'info' }>({
+    open: false,
+    title: '',
+    message: '',
+    tone: 'info',
+  });
 
   const [formData, setFormData] = React.useState({
     name: '',
@@ -136,14 +143,14 @@ export default function NewStudentPage() {
     setLoading(true);
 
     if (!formData.school_id) {
-      alert('School ID not loaded. Please try again.');
+      setDialogState({ open: true, title: 'School Not Ready', message: 'School ID not loaded. Please try again.', tone: 'warning' });
       setLoading(false);
       return;
     }
 
     try {
       if (!formData.class_id) {
-        alert('Please select a class');
+        setDialogState({ open: true, title: 'Class Required', message: 'Please select a class.', tone: 'warning' });
         setLoading(false);
         return;
       }
@@ -205,13 +212,16 @@ export default function NewStudentPage() {
         setFileInputKey((prev) => prev + 1);
 
         if ((result.parentAccounts || []).length > 0) {
-          alert(
-            result.parentAccounts
+          setDialogState({
+            open: true,
+            title: 'Parent Login Details',
+            message: result.parentAccounts
               .map((account: { name: string; phone: string; temporary_password: string | null }) =>
                 `${account.name} - ${account.phone} - ${account.temporary_password || 'Existing password kept'}`
               )
-              .join('\n')
-          );
+              .join('\n'),
+            tone: 'success',
+          });
         }
 
         setTimeout(() => setSaved(false), 3000);
@@ -220,9 +230,9 @@ export default function NewStudentPage() {
         const errorMessage = error.error || 'Failed to add student';
         if (error.details && Array.isArray(error.details)) {
           const detailMessages = error.details.map((detail: any) => `${detail.path.join('.')}: ${detail.message}`).join('\n');
-          alert(`${errorMessage}\n\nDetails:\n${detailMessages}`);
+          setDialogState({ open: true, title: 'Student Save Failed', message: `${errorMessage}\n\nDetails:\n${detailMessages}`, tone: 'error' });
         } else {
-          alert(errorMessage);
+          setDialogState({ open: true, title: 'Student Save Failed', message: errorMessage, tone: 'error' });
         }
       }
     } catch (error) {
@@ -705,6 +715,13 @@ export default function NewStudentPage() {
               </motion.div>
             )}
           </AnimatePresence>
+          <MessageDialog
+            isOpen={dialogState.open}
+            onClose={() => setDialogState((current) => ({ ...current, open: false }))}
+            title={dialogState.title}
+            message={<div className="whitespace-pre-wrap">{dialogState.message}</div>}
+            tone={dialogState.tone}
+          />
         </div>
       </motion.div>
     </div>

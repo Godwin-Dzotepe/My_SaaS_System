@@ -129,9 +129,8 @@ export default function LandingPage() {
 
   const handleInstall = async () => {
     if (!deferredPrompt) {
-      if (typeof window !== 'undefined') {
-        window.alert(installHint || 'Use your browser menu and choose "Add to Home Screen" or "Install App".');
-      }
+      setShowInstallPrompt(true);
+      setInstallHint(installHint || 'Use your browser menu and choose "Add to Home Screen" or "Install App".');
       return;
     }
 

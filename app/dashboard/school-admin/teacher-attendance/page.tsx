@@ -35,6 +35,7 @@ export default function TeacherAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const fetchPreview = async (selectedDate: string) => {
     try {
@@ -67,6 +68,7 @@ export default function TeacherAttendancePage() {
     try {
       setSaving(true);
       setError('');
+      setSuccess('');
 
       const res = await fetch('/api/attendance/teachers/preview', {
         method: 'POST',
@@ -80,7 +82,7 @@ export default function TeacherAttendancePage() {
       }
 
       await fetchPreview(date);
-      alert('Teacher attendance saved successfully.');
+      setSuccess('Teacher attendance saved successfully.');
     } catch (saveError) {
       console.error(saveError);
       setError(saveError instanceof Error ? saveError.message : 'Failed to finalize teacher attendance.');
@@ -125,6 +127,9 @@ export default function TeacherAttendancePage() {
 
         {error ? (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+        ) : null}
+        {success ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>
         ) : null}
 
         {loading ? (

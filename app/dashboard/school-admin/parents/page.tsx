@@ -12,6 +12,7 @@ import {
   Copy,
   RefreshCcw,
   Search,
+  Eye,
 } from 'lucide-react';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
@@ -19,6 +20,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { PromptModal } from '@/components/ui/prompt-modal';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -47,6 +49,9 @@ export default function ParentsPage() {
   const [feedback, setFeedback] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [resettingId, setResettingId] = useState<string | null>(null);
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string | null>>({});
+  const [revealTarget, setRevealTarget] = useState<Parent | null>(null);
+  const [revealingPassword, setRevealingPassword] = useState(false);
 
   const fetchParents = async () => {
     try {
@@ -96,11 +101,65 @@ export default function ParentsPage() {
   );
 
   const copyLoginDetails = async (parent: Parent) => {
+    if (!parent.parent_id) {
+      setError('This parent account is not linked yet.');
+      return;
+    }
+
+    const revealedPassword = revealedPasswords[parent.parent_id];
+    if (!revealedPassword) {
+      setError('Reveal the parent password first before copying login details.');
+      return;
+    }
+
     const text = `${parent.parent_name}\nPhone: ${parent.parent_phone}\nPassword: ${
-      parent.temporary_password || 'Reset required'
+      revealedPassword
     }`;
     await navigator.clipboard.writeText(text);
     setFeedback(`Login details copied for ${parent.parent_name}.`);
+  };
+
+  const handleRevealPassword = async (parent: Parent) => {
+    if (!parent.parent_id) {
+      setError('This parent account is not linked yet.');
+      return;
+    }
+    setRevealTarget(parent);
+  };
+
+  const submitRevealPassword = async (adminPassword: string) => {
+    if (!revealTarget?.parent_id) return;
+    try {
+      setRevealingPassword(true);
+      setError('');
+      setFeedback('');
+
+      const response = await fetch('/api/parents/reveal-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parentId: revealTarget.parent_id,
+          adminPassword,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to reveal parent password');
+      }
+
+      setRevealedPasswords((current) => ({
+        ...current,
+        [revealTarget.parent_id!]: data?.temporary_password || null,
+      }));
+      setFeedback(`Password revealed for ${revealTarget.parent_name}.`);
+      setRevealTarget(null);
+    } catch (revealError) {
+      console.error(revealError);
+      setError(revealError instanceof Error ? revealError.message : 'Failed to reveal parent password');
+    } finally {
+      setRevealingPassword(false);
+    }
   };
 
   const handleResetPassword = async (parent: Parent) => {
@@ -126,7 +185,12 @@ export default function ParentsPage() {
       }
 
       await fetchParents();
-      setFeedback(`New temporary password for ${parent.parent_name}: ${data?.temporary_password || ''}`);
+      setRevealedPasswords((current) => {
+        const next = { ...current };
+        delete next[parent.parent_id!];
+        return next;
+      });
+      setFeedback(`Temporary password reset for ${parent.parent_name}. The parent will receive it by SMS.`);
     } catch (resetError) {
       console.error(resetError);
       setError(resetError instanceof Error ? resetError.message : 'Failed to reset parent password');
@@ -252,7 +316,12 @@ export default function ParentsPage() {
                             </div>
                             <div className="flex items-center gap-2 font-mono text-gray-800">
                               <KeyRound className="h-4 w-4 text-gray-400" />
-                              {parent.temporary_password || 'Reset password to generate'}
+                              <span>{parent.parent_id ? (revealedPasswords[parent.parent_id] || '••••••••') : 'Reset password to generate'}</span>
+                              {parent.parent_id ? (
+                                <button type="button" className="text-blue-600 hover:text-blue-800" onClick={() => handleRevealPassword(parent)}>
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                              ) : null}
                             </div>
                             {parent.password_generated_at ? (
                               <div className="text-xs text-gray-400">
@@ -346,7 +415,12 @@ export default function ParentsPage() {
                                   </div>
                                   <div className="flex items-center gap-2 font-mono text-gray-800">
                                     <KeyRound className="h-4 w-4 text-gray-400" />
-                                    {parent.temporary_password || 'Reset password to generate'}
+                                    <span>{parent.parent_id ? (revealedPasswords[parent.parent_id] || '••••••••') : 'Reset password to generate'}</span>
+                                    {parent.parent_id ? (
+                                      <button type="button" className="text-blue-600 hover:text-blue-800" onClick={() => handleRevealPassword(parent)}>
+                                        <Eye className="h-4 w-4" />
+                                      </button>
+                                    ) : null}
                                   </div>
                                   {parent.password_generated_at ? (
                                     <div className="text-xs text-gray-400">
@@ -410,6 +484,18 @@ export default function ParentsPage() {
           </motion.div>
         </div>
       </motion.div>
+      <PromptModal
+        isOpen={Boolean(revealTarget)}
+        onClose={() => setRevealTarget(null)}
+        onSubmit={submitRevealPassword}
+        title="Verify Admin Password"
+        description={revealTarget ? `Enter your admin password to view ${revealTarget.parent_name}'s login password.` : undefined}
+        label="Admin Password"
+        placeholder="Enter your current password"
+        confirmText="Reveal Password"
+        type="password"
+        isLoading={revealingPassword}
+      />
     </div>
   );
 }

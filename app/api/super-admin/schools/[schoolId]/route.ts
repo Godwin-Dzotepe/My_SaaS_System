@@ -95,7 +95,9 @@ export async function GET(
         id: school.id,
         school_name: school.school_name,
         address: school.address,
-        phone: school.phone
+        phone: school.phone,
+        logo_url: school.logo_url,
+        sms_username: school.sms_username,
       },
       users,
       students,

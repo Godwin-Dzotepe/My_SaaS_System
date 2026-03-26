@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
+import { parseResultPublishPayload, RESULT_PUBLISHED_NOTIFICATION } from '@/lib/result-publishing';
 
 export const GET = withAuth(
   async ({ session }) => {
@@ -24,7 +25,20 @@ export const GET = withAuth(
       ]);
 
       return NextResponse.json({
-        notifications,
+        notifications: notifications.map((notification) => {
+          if (notification.title === RESULT_PUBLISHED_NOTIFICATION) {
+            const payload = parseResultPublishPayload(notification.body);
+            if (payload) {
+              return {
+                ...notification,
+                title: 'Results Published',
+                body: payload.message,
+              };
+            }
+          }
+
+          return notification;
+        }),
         unreadCount,
       });
     } catch (error) {

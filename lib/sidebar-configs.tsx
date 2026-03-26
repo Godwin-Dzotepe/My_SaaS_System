@@ -15,7 +15,8 @@ import {
   XSquare,     // New icon
   CalendarDays, // New icon
   ShieldCheck,
-  ClipboardList
+  ClipboardList,
+  ArrowUpRight
 } from 'lucide-react';
 import React from 'react';
 
@@ -29,6 +30,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { label: 'Secretaries', href: '/dashboard/school-admin/secretaries', icon: <Users className="w-5 h-5" /> },
   { label: 'Classes', href: '/dashboard/school-admin/classes', icon: <School className="w-5 h-5" /> },
   { label: 'Subjects', href: '/dashboard/school-admin/subjects', icon: <BookOpen className="w-5 h-5" /> },
+  { label: 'Promotion', href: '/dashboard/school-admin/promotion', icon: <ArrowUpRight className="w-5 h-5" /> },
   { label: 'Grading', href: '/dashboard/school-admin/grading', icon: <ShieldCheck className="w-5 h-5" /> },
   { label: 'Fees Config', href: '/dashboard/school-admin/fees', icon: <CreditCard className="w-5 h-5" /> },
   { label: 'Fees Checker', href: '/dashboard/school-admin/fees-checker', icon: <CreditCard className="w-5 h-5" /> },
@@ -58,6 +60,7 @@ export const TEACHER_SIDEBAR_ITEMS = [
   { label: 'Present Students', href: '/dashboard/teacher/attendance/present', icon: <CheckSquare className="w-5 h-5" /> },
   { label: 'Absent Students', href: '/dashboard/teacher/attendance/absent', icon: <XSquare className="w-5 h-5" /> },
   { label: 'Scoring', href: '/dashboard/teacher/scoring', icon: <FileText className="w-5 h-5" /> },
+  { label: 'View Scores', href: '/dashboard/teacher/scores', icon: <FileText className="w-5 h-5" /> },
   { label: 'Messages', href: '/dashboard/teacher/messaging', icon: <MessageSquare className="w-5 h-5" /> },
   { label: 'Events', href: '/dashboard/teacher/events', icon: <Calendar className="w-5 h-5" /> },
   { label: 'Notice Board', href: '/dashboard/teacher/announcements', icon: <Bell className="w-5 h-5" /> },

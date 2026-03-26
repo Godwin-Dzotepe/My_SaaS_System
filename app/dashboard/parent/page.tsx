@@ -37,6 +37,8 @@ interface DashboardChild {
   avatar: string;
   attendance: string;
   lastResult: string;
+  attitude: string;
+  teacherAdvice: string;
   pendingFees: number;
   latestPeriod: string | null;
 }
@@ -275,6 +277,13 @@ export default function ParentDashboard() {
                         ) : (
                           <p className="text-xs text-[#646464] mb-6">No published results yet.</p>
                         )}
+
+                        <div className="mb-6 rounded-xl border border-[#e1f1ff] bg-[#f8fbff] px-4 py-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#3f7afc]">Attitude</p>
+                          <p className="mt-1 text-sm text-[#212529]">{child.attitude}</p>
+                          <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-[#3f7afc]">Teacher Advice</p>
+                          <p className="mt-1 text-sm text-[#212529]">{child.teacherAdvice}</p>
+                        </div>
 
                         <div className="flex flex-col sm:flex-row gap-3 mt-4">
                           <Link href={`/dashboard/parent/children/${child.id}/results`} className="flex-1">

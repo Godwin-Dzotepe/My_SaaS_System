@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/api-auth';
-import { prisma } from '@/lib/prisma';
+import { findSessionUserWithSchoolBranding } from '@/lib/school-branding';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,20 +15,7 @@ export const GET = withAuth(
       }
 
       console.log("API Auth /me - Fetching DB for User ID:", session.user.id);  
-      const dbUser = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { 
-          name: true,
-          school_id: true,
-          school: {
-            select: {
-              school_name: true,
-              isActive: true,
-              deactivationMessage: true
-            }
-          }
-        },
-      });
+      const dbUser = await findSessionUserWithSchoolBranding(session.user.id);
 
       if (!dbUser) {
         return NextResponse.json(
@@ -54,6 +41,8 @@ export const GET = withAuth(
         name: dbUser.name,
         school_id: session.user.school_id || dbUser.school_id,
         schoolName: dbUser.school?.school_name || null,
+        schoolLogoUrl: dbUser.school?.logo_url || null,
+        schoolSmsUsername: dbUser.school?.sms_username || null,
       };
 
       return NextResponse.json({ user: userWithDetails });

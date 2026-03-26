@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { SECRETARY_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 
 
 
@@ -31,6 +32,7 @@ export default function SecretaryStudentList() {
   const [editingStudent, setEditingStudent] = React.useState<any>(null);
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
+  const [studentToDelete, setStudentToDelete] = React.useState<string | null>(null);
 
   const fetchStudents = async () => {
     try {
@@ -57,13 +59,15 @@ export default function SecretaryStudentList() {
   }, []);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this student?')) return;
     try {
       const res = await fetch(`/api/students/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setStudents(students.filter(s => s.id !== id));
       }
     } catch (err) {}
+    finally {
+      setStudentToDelete(null);
+    }
   };
 
   const handleEdit = (student: any) => {
@@ -187,7 +191,7 @@ export default function SecretaryStudentList() {
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => handleEdit(student)}>
                             <Edit className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => handleDelete(student.id)}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => setStudentToDelete(student.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -257,6 +261,14 @@ export default function SecretaryStudentList() {
           </div>
         </div>
       )}
+      <ConfirmationModal
+        isOpen={Boolean(studentToDelete)}
+        onClose={() => setStudentToDelete(null)}
+        onConfirm={() => studentToDelete && handleDelete(studentToDelete)}
+        title="Delete Student"
+        message="Are you sure you want to delete this student record? This action cannot be undone."
+        confirmText="Delete Student"
+      />
     </div>
   );
 }

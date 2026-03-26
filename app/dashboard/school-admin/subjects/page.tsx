@@ -8,6 +8,7 @@ import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -36,6 +37,7 @@ export default function SubjectsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [subjectToDelete, setSubjectToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user && d.user.name) setUserName(d.user.name); }).catch(console.error);
@@ -85,8 +87,6 @@ export default function SubjectsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this subject?')) return;
-    
     setIsProcessing(true);
     try {
       const response = await fetch('/api/subjects/' + id, {
@@ -100,9 +100,10 @@ export default function SubjectsPage() {
       
       await fetchSubjects();
     } catch (err: any) {
-      alert(err.message);
+      setError(err.message);
     } finally {
       setIsProcessing(false);
+      setSubjectToDelete(null);
     }
   };
 
@@ -135,7 +136,7 @@ export default function SubjectsPage() {
       setEditingId(null);
       await fetchSubjects();
     } catch (err: any) {
-      alert(err.message);
+      setError(err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -259,7 +260,7 @@ export default function SubjectsPage() {
                                   size="icon" 
                                   variant="ghost" 
                                   className="h-8 w-8 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                                  onClick={() => handleDelete(subject.id)}
+                                  onClick={() => setSubjectToDelete(subject.id)}
                                   disabled={isProcessing || editingId !== null}
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -276,6 +277,15 @@ export default function SubjectsPage() {
             </motion.div>
           </div>
         </div>
+        <ConfirmationModal
+          isOpen={Boolean(subjectToDelete)}
+          onClose={() => setSubjectToDelete(null)}
+          onConfirm={() => subjectToDelete && handleDelete(subjectToDelete)}
+          title="Delete Subject"
+          message="Are you sure you want to delete this subject? This action cannot be undone."
+          confirmText="Delete Subject"
+          isLoading={isProcessing}
+        />
       </motion.div>
     </div>
   );

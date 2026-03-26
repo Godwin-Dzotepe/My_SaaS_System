@@ -1,9 +1,11 @@
 'use client';
 
+import Image from 'next/image';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { GraduationCap, Eye, EyeOff, Loader2, BookOpen, Users, School } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowLeft, Eye, EyeOff, GraduationCap, Loader2, Phone, ShieldCheck } from 'lucide-react';
 
 const ROLE_REDIRECTS: Record<string, string> = {
   super_admin: '/dashboard/super-admin',
@@ -14,13 +16,25 @@ const ROLE_REDIRECTS: Record<string, string> = {
   secretary: '/dashboard/secretary',
 };
 
-const floatingIcons = [
-  { icon: BookOpen, x: '10%', y: '20%', delay: 0, size: 24 },
-  { icon: Users, x: '85%', y: '15%', delay: 0.5, size: 20 },
-  { icon: School, x: '75%', y: '70%', delay: 1, size: 28 },
-  { icon: GraduationCap, x: '15%', y: '75%', delay: 1.5, size: 22 },
-  { icon: BookOpen, x: '50%', y: '8%', delay: 0.8, size: 18 },
-  { icon: Users, x: '90%', y: '45%', delay: 0.3, size: 16 },
+const showcaseSlides = [
+  {
+    image: '/image/login-school-campus.jpg',
+    eyebrow: 'Connected Learning',
+    title: 'Keep every classroom, parent, and school team in one rhythm.',
+    description: 'Track attendance, publish results, and communicate with families from one trusted school hub.',
+  },
+  {
+    image: '/image/login-parents-meeting.jpg',
+    eyebrow: 'Parent Visibility',
+    title: 'Give families a clear view of progress without the usual confusion.',
+    description: 'Results, updates, and messages arrive in one place so parents stay informed and involved.',
+  },
+  {
+    image: '/image/login-teacher-classroom.jpg',
+    eyebrow: 'Teacher Focus',
+    title: 'Help your staff spend less time chasing records and more time teaching.',
+    description: 'From scoring to attendance and announcements, the daily school flow stays organized and fast.',
+  },
 ];
 
 export default function LoginPage() {
@@ -31,6 +45,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState('');
+  const [helperMessage, setHelperMessage] = useState('');
+  const [firstTimeLoading, setFirstTimeLoading] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -53,6 +70,14 @@ export default function LoginPage() {
     checkSession();
   }, [router]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setActiveSlide(current => (current + 1) % showcaseSlides.length);
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -65,13 +90,15 @@ export default function LoginPage() {
         body: JSON.stringify({ identifier, password }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+        ? await res.json().catch(() => null)
+        : null;
 
       if (!res.ok) {
-        throw new Error(data.error || 'Login failed');
+        throw new Error(data?.error || `Login failed (${res.status})`);
       }
 
-      // Redirect based on role
       const redirect = ROLE_REDIRECTS[data.user.role] || '/dashboard';
       router.push(redirect);
     } catch (err: any) {
@@ -81,176 +108,259 @@ export default function LoginPage() {
     }
   };
 
+  const handleParentFirstTimePassword = async () => {
+    if (!identifier.trim()) {
+      setError('Enter the parent phone number first.');
+      return;
+    }
+
+    try {
+      setFirstTimeLoading(true);
+      setError('');
+      setHelperMessage('');
+
+      const res = await fetch('/api/auth/parent-first-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: identifier.trim() }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to send first-time password.');
+      }
+
+      setHelperMessage(data?.message || 'Password sent successfully.');
+    } catch (firstTimeError: any) {
+      setError(firstTimeError.message || 'Failed to send first-time password.');
+    } finally {
+      setFirstTimeLoading(false);
+    }
+  };
+
   if (checkingSession) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
-        <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-6 py-4 text-white backdrop-blur-xl">
-          <Loader2 className="w-5 h-5 animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_#3f7afc,_#dfe9ff_55%,_#f0f1f3_100%)] px-4">
+        <div className="flex items-center gap-3 rounded-2xl border border-[#3f7afc]/10 bg-white px-6 py-4 text-[#212529] shadow-lg shadow-[#3f7afc]/10">
+          <Loader2 className="h-5 w-5 animate-spin" />
           <span>Checking your session...</span>
         </div>
       </div>
     );
   }
 
+  const currentSlide = showcaseSlides[activeSlide];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated background circles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          className="absolute w-96 h-96 rounded-full bg-blue-500/10 blur-3xl"
-          style={{ top: '-10%', left: '-10%' }}
-          animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute w-80 h-80 rounded-full bg-indigo-400/10 blur-3xl"
-          style={{ bottom: '-5%', right: '-5%' }}
-          animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.2, 0.4] }}
-          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute w-64 h-64 rounded-full bg-cyan-400/10 blur-2xl"
-          style={{ top: '40%', left: '60%' }}
-          animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
-          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
-        />
-      </div>
-
-      {/* Floating icons */}
-      {floatingIcons.map((item, i) => {
-        const Icon = item.icon;
-        return (
-          <motion.div
-            key={i}
-            className="absolute text-white/10 pointer-events-none"
-            style={{ left: item.x, top: item.y }}
-            animate={{ y: [0, -15, 0], rotate: [0, 10, -10, 0] }}
-            transition={{ duration: 5 + i, repeat: Infinity, ease: 'easeInOut', delay: item.delay }}
-          >
-            <Icon size={item.size} />
-          </motion.div>
-        );
-      })}
-
-      {/* Login card */}
-      <motion.div
-        className="w-full max-w-md relative z-10"
-        initial={{ opacity: 0, y: 40, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-      >
-        <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-8">
-          {/* Logo */}
-          <motion.div
-            className="flex flex-col items-center mb-8"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-          >
-            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg mb-4">
-              <GraduationCap className="w-9 h-9 text-blue-700" />
-            </div>
-            <h1 className="text-2xl font-bold text-white">FutureLink</h1>
-            <p className="text-blue-200 text-sm mt-1">School Management System</p>
-          </motion.div>
+    <div className="min-h-screen bg-[#f0f1f3] text-slate-900">
+      <div className="grid min-h-screen lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(180deg,_#f8f9fb_0%,_#eef2f9_100%)] px-5 py-10 sm:px-8 lg:px-12">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute left-0 top-0 h-56 w-56 rounded-full bg-[#3f7afc]/16 blur-3xl" />
+            <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-[#ffa001]/12 blur-3xl" />
+          </div>
 
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
+            className="relative z-10 w-full max-w-xl rounded-[2rem] border border-white/70 bg-white/90 p-6 shadow-[0_25px_80px_rgba(63,122,252,0.12)] backdrop-blur-xl sm:p-8"
+            initial={{ opacity: 0, x: -24 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
           >
-            <h2 className="text-xl font-semibold text-white mb-1">Welcome back</h2>
-            <p className="text-blue-200 text-sm mb-6">Sign in to your account to continue</p>
-          </motion.div>
+            <div className="mb-8 flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#3f7afc] text-white shadow-lg shadow-[#3f7afc]/25">
+                  <GraduationCap className="h-8 w-8" />
+                </div>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#3f7afc]">FutureLink</p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#212529] sm:text-4xl">
+                  Welcome back
+                </h1>
+                <p className="mt-3 max-w-md text-sm leading-6 text-[#646464] sm:text-base">
+                  Sign in to manage classes, attendance, scores, and parent communication from one place.
+                </p>
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <motion.div
-                className="bg-red-500/20 border border-red-400/30 text-red-200 px-4 py-3 rounded-xl text-sm"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 rounded-full border border-[#d8deea] bg-white px-4 py-2 text-sm font-medium text-[#646464] transition hover:border-[#3f7afc]/30 hover:text-[#3f7afc]"
               >
-                {error.startsWith('SCHOOL_DEACTIVATED:') ? (<div><strong className="block text-red-100">Account Access Disabled</strong><span className="mt-1 block">{error.split('SCHOOL_DEACTIVATED:')[1]}</span></div>) : error}
-              </motion.div>
-            )}
+                <ArrowLeft className="h-4 w-4" />
+                Home
+              </Link>
+            </div>
 
-            <motion.div
-              className="space-y-2"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-            >
-              <label className="text-sm font-medium text-blue-100">Email or Phone</label>
-              <input
-                type="text"
-                value={identifier}
-                onChange={e => setIdentifier(e.target.value)}
-                placeholder="Enter your email or phone"
-                required
-                className="w-full bg-white/10 border border-white/20 text-white placeholder-blue-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
-              />
-            </motion.div>
+            <div className="mb-6 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-[#e1f1ff]/60 px-4 py-3">
+                <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#3f7afc]/12 text-[#3f7afc]">
+                  <ShieldCheck className="h-4 w-4" />
+                </div>
+                <p className="text-sm font-semibold text-[#212529]">Secure school access</p>
+                <p className="mt-1 text-xs leading-5 text-[#646464]">One login for admins, teachers, finance teams, and parents.</p>
+              </div>
+              <div className="rounded-2xl bg-[#fff2d8]/55 px-4 py-3">
+                <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#ffa001]/16 text-[#ffa001]">
+                  <Phone className="h-4 w-4" />
+                </div>
+                <p className="text-sm font-semibold text-[#212529]">Parent first-time access</p>
+                <p className="mt-1 text-xs leading-5 text-[#646464]">Use the phone number linked to the student to receive the first password.</p>
+              </div>
+            </div>
 
-            <motion.div
-              className="space-y-2"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
-            >
-              <label className="text-sm font-medium text-blue-100">Password</label>
-              <div className="relative">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {error ? (
+                <motion.div
+                  className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  {error.startsWith('SCHOOL_DEACTIVATED:') ? (
+                    <div>
+                      <strong className="block text-rose-800">Account Access Disabled</strong>
+                      <span className="mt-1 block">{error.split('SCHOOL_DEACTIVATED:')[1]}</span>
+                    </div>
+                  ) : (
+                    error
+                  )}
+                </motion.div>
+              ) : null}
+
+              {helperMessage ? (
+                <motion.div
+                  className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  {helperMessage}
+                </motion.div>
+              ) : null}
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-[#646464]">Email or Phone</label>
                 <input
-                  key={showPassword ? 'text' : 'password'}
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  type="text"
+                  value={identifier}
+                  onChange={e => setIdentifier(e.target.value)}
+                  placeholder="Enter your email or phone"
                   required
-                  autoComplete="current-password"
-                  className="w-full bg-white/10 border border-white/20 text-white placeholder-blue-300 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                  className="w-full rounded-2xl border border-[#d8deea] bg-white px-4 py-3 text-sm text-[#212529] outline-none transition placeholder:text-slate-400 focus:border-[#3f7afc] focus:ring-4 focus:ring-[#3f7afc]/10"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-[#646464]">Password</label>
+                <div className="relative">
+                  <input
+                    key={showPassword ? 'text' : 'password'}
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    autoComplete="current-password"
+                    className="w-full rounded-2xl border border-[#d8deea] bg-white px-4 py-3 pr-12 text-sm text-[#212529] outline-none transition placeholder:text-slate-400 focus:border-[#3f7afc] focus:ring-4 focus:ring-[#3f7afc]/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-500 transition hover:bg-[#f8f9fb] hover:text-[#3f7afc]"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#3f7afc] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#2d6ae0] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    'Sign In'
+                  )}
+                </button>
+
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-300 hover:text-white transition"
+                  onClick={handleParentFirstTimePassword}
+                  disabled={firstTimeLoading}
+                  className="w-full rounded-2xl border border-[#d8deea] bg-white px-4 py-3.5 text-sm font-semibold text-[#646464] transition hover:border-[#3f7afc]/30 hover:bg-[#f8f9fb] hover:text-[#3f7afc] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {firstTimeLoading ? 'Sending parent password...' : 'Parent First-Time Password'}
                 </button>
               </div>
-            </motion.div>
+            </form>
 
+            <p className="mt-6 text-center text-xs leading-5 text-[#646464] sm:text-sm">
+              Contact your school administrator if you need access or your parent phone number is not linked yet.
+            </p>
+          </motion.div>
+        </section>
+
+        <section className="relative hidden min-h-screen overflow-hidden lg:block">
+          <AnimatePresence mode="wait">
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
+              key={currentSlide.image}
+              className="absolute inset-0"
+              initial={{ opacity: 0, scale: 1.04 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.02 }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
             >
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-white text-blue-800 font-semibold py-3 rounded-xl hover:bg-blue-50 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign In'
-                )}
-              </button>
+              <Image
+                src={currentSlide.image}
+                alt={currentSlide.title}
+                fill
+                priority
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(63,122,252,0.12),rgba(33,37,41,0.78))]" />
             </motion.div>
-          </form>
+          </AnimatePresence>
 
-          <motion.p
-            className="text-center text-blue-300 text-xs mt-6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-          >
-            Contact your school administrator if you need access.
-          </motion.p>
-        </div>
-      </motion.div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(63,122,252,0.25),transparent_35%)]" />
+
+          <div className="absolute inset-x-0 bottom-0 p-10 xl:p-14">
+            <motion.div
+              key={activeSlide}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="max-w-2xl"
+            >
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-blue-100">
+                {currentSlide.eyebrow}
+              </p>
+              <h2 className="mt-4 text-4xl font-semibold leading-tight text-white xl:text-5xl">
+                {currentSlide.title}
+              </h2>
+              <p className="mt-4 max-w-xl text-base leading-7 text-slate-200">
+                {currentSlide.description}
+              </p>
+            </motion.div>
+
+            <div className="mt-8 flex items-center gap-3">
+              {showcaseSlides.map((slide, index) => (
+                <button
+                  key={slide.image}
+                  type="button"
+                  onClick={() => setActiveSlide(index)}
+                  className={`h-2.5 rounded-full transition-all ${
+                    index === activeSlide ? 'w-12 bg-white' : 'w-2.5 bg-white/45 hover:bg-white/70'
+                  }`}
+                  aria-label={`View slide ${index + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

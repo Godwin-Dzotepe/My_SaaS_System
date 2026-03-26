@@ -18,6 +18,8 @@ export default function SecretaryTeacherAttendancePage() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchTeachers();
@@ -43,6 +45,8 @@ export default function SecretaryTeacherAttendancePage() {
 
   const handleSave = async () => {
     setSaving(true);
+    setFeedback('');
+    setError('');
     try {
       for (const [teacherId, status] of Object.entries(attendance)) {
         await fetch("/api/attendance/teachers", {
@@ -51,11 +55,11 @@ export default function SecretaryTeacherAttendancePage() {
           body: JSON.stringify({ teacherId, status, date }),
         });
       }
-      alert("Attendance saved successfully");
+      setFeedback("Attendance saved successfully.");
       return;
     } catch (e) {
       console.error(e);
-      alert("Error saving attendance");
+      setError("Error saving attendance.");
     } finally {
       setSaving(false);
     }
@@ -88,6 +92,9 @@ export default function SecretaryTeacherAttendancePage() {
             className="border-gray-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
+
+        {feedback ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{feedback}</div> : null}
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
         {loading ? (
           <div className="text-center py-12 text-gray-500 font-medium">Loading teachers...</div>

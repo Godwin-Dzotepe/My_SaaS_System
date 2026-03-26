@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { TEACHER_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { MessageDialog } from '@/components/ui/message-dialog';
 
 // Define types for our data
 interface AppSession {
@@ -41,6 +42,8 @@ interface Student {
 interface ScoreInput {
   classScore: number | '';
   examScore: number | '';
+  behavior: string;
+  teacherAdvice: string;
 }
 
 export default function TeacherScoringPage() {
@@ -59,6 +62,17 @@ export default function TeacherScoringPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [dialogState, setDialogState] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    tone: 'success' | 'error' | 'warning' | 'info';
+  }>({
+    open: false,
+    title: '',
+    message: '',
+    tone: 'info',
+  });
 
   // Fetch session, classes, and subjects on component mount
   useEffect(() => {
@@ -134,15 +148,29 @@ export default function TeacherScoringPage() {
     fetchStudents();
   }, [selectedClass, session]);
 
-  const handleScoreChange = (studentId: string, field: 'classScore' | 'examScore', value: string) => {
-    const numericValue = value === '' ? '' : Number(value);
+  const handleScoreChange = (
+    studentId: string,
+    field: 'classScore' | 'examScore' | 'behavior' | 'teacherAdvice',
+    value: string
+  ) => {
+    const isScoreField = field === 'classScore' || field === 'examScore';
+    const nextValue = isScoreField ? (value === '' ? '' : Number(value)) : value;
     setScores(prev => ({
       ...prev,
       [studentId]: {
         ...prev[studentId],
-        [field]: numericValue,
+        [field]: nextValue,
       },
     }));
+  };
+
+  const getStudentTotal = (studentId: string) => {
+    const classScore = scores[studentId]?.classScore;
+    const examScore = scores[studentId]?.examScore;
+    const hasClassScore = !(classScore === '' || classScore === null || classScore === undefined);
+    const hasExamScore = !(examScore === '' || examScore === null || examScore === undefined);
+    if (!hasClassScore && !hasExamScore) return 'N/A';
+    return (Number(classScore || 0) + Number(examScore || 0)).toFixed(1);
   };
 
   const academicYears = Array.from(new Set(periods.map((period) => period.academic_year)));
@@ -158,10 +186,16 @@ export default function TeacherScoringPage() {
     setError(null);
     setSuccessMessage(null);
 
-    const scorePromises = Object.entries(scores).map(([student_id, score]) => {
-      if ((score.classScore === '' || score.classScore === null) && (score.examScore === '' || score.examScore === null)) return null;
+    const scoreRequests = Object.entries(scores).map(([student_id, score]) => {
+      const hasClassScore = !(score.classScore === '' || score.classScore === null || score.classScore === undefined);
+      const hasExamScore = !(score.examScore === '' || score.examScore === null || score.examScore === undefined);
+      const hasBehavior = Boolean(score.behavior?.trim());
+      const hasTeacherAdvice = Boolean(score.teacherAdvice?.trim());
+      if (!hasClassScore && !hasExamScore && !hasBehavior && !hasTeacherAdvice) return null;
 
-      return fetch('/api/scores', {
+      const studentName = students.find((student) => student.id === student_id)?.name || student_id;
+
+      const request = fetch('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -171,36 +205,62 @@ export default function TeacherScoringPage() {
           term: selectedTerm,
           classScore: score.classScore === '' ? null : score.classScore,
           examScore: score.examScore === '' ? null : score.examScore,
+          behavior: score.behavior?.trim() || null,
+          teacherAdvice: score.teacherAdvice?.trim() || null,
         }),
       });
-    }).filter(p => p !== null);
+      return { studentId: student_id, studentName, request };
+    }).filter((entry): entry is { studentId: string; studentName: string; request: Promise<Response> } => entry !== null);
 
-    if (scorePromises.length === 0) {
+    if (scoreRequests.length === 0) {
         setError("No scores entered to save.");
         setIsLoading(false);
         return;
     }
 
     try {
-      const results = await Promise.all(scorePromises as Promise<Response>[]);
+      const responses = await Promise.all(
+        scoreRequests.map(async ({ studentId, studentName, request }) => {
+          const res = await request;
+          return { res, studentId, studentName };
+        })
+      );
+
       const failedResponses = await Promise.all(
-        results
-          .filter((res) => !res.ok)
-          .map(async (res) => {
+        responses
+          .filter(({ res }) => !res.ok)
+          .map(async ({ res, studentName }) => {
             const payload = await res.json().catch(() => null);
             return {
               status: res.status,
               error: payload?.error || res.statusText || 'Unknown error',
+              details: payload?.details || '',
+              studentName,
             };
           })
       );
 
       if (failedResponses.length > 0) {
-        const errorMsg = failedResponses.map((r) => r.error).join(', ');
+        const errorMsg = failedResponses
+          .map((r) => `${r.studentName}: ${r.error}${r.details ? ` (${r.details})` : ''}`)
+          .join('; ');
+        setDialogState({
+          open: true,
+          title: 'Some Scores Failed',
+          message: errorMsg,
+          tone: 'error',
+        });
         throw new Error(`${failedResponses.length} scores failed to save. Errors: ${errorMsg}`);
       }
 
-      setSuccessMessage('All scores saved successfully!');
+      const successText = `${scoreRequests.length} score record${scoreRequests.length === 1 ? '' : 's'} saved successfully.`;
+      setSuccessMessage(successText);
+      setDialogState({
+        open: true,
+        title: 'Scores Saved',
+        message: successText,
+        tone: 'success',
+      });
       setScores({});
     } catch (err: any) {
       setError(err.message);
@@ -213,7 +273,7 @@ export default function TeacherScoringPage() {
       return <div className="p-8">Loading...</div>
   }
 
-  if (error) {
+  if (error && !students.length) {
       return (
         <div className="flex min-h-screen bg-gray-50">
           <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName={session?.name || 'Teacher User'} />
@@ -231,7 +291,7 @@ export default function TeacherScoringPage() {
       <Card>
         <CardHeader className="space-y-2">
           <CardTitle>Enter Student Scores</CardTitle>
-          <p className="text-sm text-gray-500">Choose a class, subject, and term, then enter scores in a mobile-friendly layout.</p>
+          <p className="text-sm text-gray-500">Choose a class, subject, and term, then enter each student&apos;s scores, behavior, and teacher advice one by one.</p>
         </CardHeader>
         <CardContent className="space-y-6 px-4 pb-4 sm:px-6 sm:pb-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -274,6 +334,7 @@ export default function TeacherScoringPage() {
             </Select>
           </div>
 
+          {error && <p className="text-red-600 text-sm">{error}</p>}
           {successMessage && <p className="text-green-500">{successMessage}</p>}
           {!successMessage && !students.length && selectedClass && !isLoading ? (
             <p className="text-amber-600 text-sm">
@@ -291,6 +352,9 @@ export default function TeacherScoringPage() {
                       <TableHead>Student ID</TableHead>
                       <TableHead className="w-32">Class Score</TableHead>
                       <TableHead className="w-32">Exam Score</TableHead>
+                      <TableHead className="w-24">Total</TableHead>
+                      <TableHead>Behavior</TableHead>
+                      <TableHead>Teacher Advice</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -313,6 +377,27 @@ export default function TeacherScoringPage() {
                             value={scores[student.id]?.examScore ?? ''}
                             onChange={e => handleScoreChange(student.id, 'examScore', e.target.value)}
                             placeholder="e.g., 60"
+                            disabled={isLoading}
+                          />
+                        </TableCell>
+                        <TableCell className="font-semibold text-blue-700">
+                          {getStudentTotal(student.id)}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="text"
+                            value={scores[student.id]?.behavior ?? ''}
+                            onChange={e => handleScoreChange(student.id, 'behavior', e.target.value)}
+                            placeholder="e.g., Respectful and focused"
+                            disabled={isLoading}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="text"
+                            value={scores[student.id]?.teacherAdvice ?? ''}
+                            onChange={e => handleScoreChange(student.id, 'teacherAdvice', e.target.value)}
+                            placeholder="e.g., Keep practicing at home"
                             disabled={isLoading}
                           />
                         </TableCell>
@@ -350,6 +435,30 @@ export default function TeacherScoringPage() {
                             disabled={isLoading}
                           />
                         </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Total</label>
+                          <Input type="text" value={getStudentTotal(student.id)} disabled />
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Behavior</label>
+                          <Input
+                            type="text"
+                            value={scores[student.id]?.behavior ?? ''}
+                            onChange={e => handleScoreChange(student.id, 'behavior', e.target.value)}
+                            placeholder="e.g., Respectful and focused"
+                            disabled={isLoading}
+                          />
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Teacher Advice</label>
+                          <Input
+                            type="text"
+                            value={scores[student.id]?.teacherAdvice ?? ''}
+                            onChange={e => handleScoreChange(student.id, 'teacherAdvice', e.target.value)}
+                            placeholder="e.g., Keep practicing at home"
+                            disabled={isLoading}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -366,6 +475,13 @@ export default function TeacherScoringPage() {
         </CardContent>
       </Card>
       </div>
+      <MessageDialog
+        isOpen={dialogState.open}
+        onClose={() => setDialogState((current) => ({ ...current, open: false }))}
+        title={dialogState.title}
+        message={dialogState.message}
+        tone={dialogState.tone}
+      />
     </div>
   );
 }

@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { SUPER_ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { motion } from 'framer-motion';
+import { MessageDialog } from '@/components/ui/message-dialog';
 
 export default function ManageSchools() {
   const [schools, setSchools] = React.useState<any[]>([]);
@@ -30,6 +31,12 @@ export default function ManageSchools() {
   const [selectedSchool, setSelectedSchool] = React.useState<any>(null);
   const [deactivationMessage, setDeactivationMessage] = React.useState('');
   const [isUpdating, setIsUpdating] = React.useState(false);
+  const [dialogState, setDialogState] = React.useState<{ open: boolean; title: string; message: string; tone: 'success' | 'error' | 'warning' | 'info' }>({
+    open: false,
+    title: '',
+    message: '',
+    tone: 'info',
+  });
 
   const fetchSchools = async () => {
     try {
@@ -99,10 +106,11 @@ export default function ManageSchools() {
         body: JSON.stringify({ schoolId: school.id, isActive: true })
       });
       if (res.ok) {
-        alert("School activated successfully.");
+        setDialogState({ open: true, title: 'School Activated', message: 'School activated successfully.', tone: 'success' });
         fetchSchools();
       } else {
-        const errorData = await res.json().catch(() => null); alert(`Failed to activate school. ${errorData?.error || ""} ${errorData?.details || ""}`);
+        const errorData = await res.json().catch(() => null);
+        setDialogState({ open: true, title: 'Activation Failed', message: `Failed to activate school. ${errorData?.error || ""} ${errorData?.details || ""}`.trim(), tone: 'error' });
       }
     } catch (err) {
       console.error(err);
@@ -114,7 +122,7 @@ export default function ManageSchools() {
   const confirmDeactivate = async () => {
     if (!selectedSchool) return;
     if (!deactivationMessage.trim()) {
-      alert("Please provide a reason for deactivation.");
+      setDialogState({ open: true, title: 'Reason Required', message: 'Please provide a reason for deactivation.', tone: 'warning' });
       return;
     }
 
@@ -130,12 +138,13 @@ export default function ManageSchools() {
         })
       });
       if (res.ok) {
-        alert("School deactivated successfully.");
+        setDialogState({ open: true, title: 'School Deactivated', message: 'School deactivated successfully.', tone: 'success' });
         setDeactivateModalOpen(false);
         setDeactivationMessage('');
         fetchSchools();
       } else {
-        const errorData = await res.json().catch(() => null); alert(`Failed to deactivate school. ${errorData?.error || ""} ${errorData?.details || ""}`);
+        const errorData = await res.json().catch(() => null);
+        setDialogState({ open: true, title: 'Deactivation Failed', message: `Failed to deactivate school. ${errorData?.error || ""} ${errorData?.details || ""}`.trim(), tone: 'error' });
       }
     } catch (err) {
       console.error(err);
@@ -246,7 +255,7 @@ export default function ManageSchools() {
                         {school.phone}
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4 border-t pt-4">      
+                    <div className="grid grid-cols-2 gap-4 border-t pt-4 md:grid-cols-4">      
                       <div className="text-center">
                         <p className="text-xs text-gray-500 mb-1">Students</p>  
                         <div className="flex items-center justify-center gap-1 font-semibold text-blue-600">                                                                              
@@ -265,7 +274,14 @@ export default function ManageSchools() {
                         <p className="text-xs text-gray-500 mb-1">Staff</p>     
                         <div className="flex items-center justify-center gap-1 font-semibold text-orange-600">                                                                            
                           <Users className="w-3 h-3" />
-                          {school._count?.users || 0}
+                          {school._count?.staff || 0}
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs text-gray-500 mb-1">Parents</p>     
+                        <div className="flex items-center justify-center gap-1 font-semibold text-emerald-600">                                                                            
+                          <Users className="w-3 h-3" />
+                          {school._count?.parents || 0}
                         </div>
                       </div>
                     </div>
@@ -309,6 +325,13 @@ export default function ManageSchools() {
           </div>
         </div>
       )}
+      <MessageDialog
+        isOpen={dialogState.open}
+        onClose={() => setDialogState((current) => ({ ...current, open: false }))}
+        title={dialogState.title}
+        message={dialogState.message}
+        tone={dialogState.tone}
+      />
     </div>
   );
 }

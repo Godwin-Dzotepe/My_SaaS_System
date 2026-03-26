@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { generateToken } from '@/lib/auth';
+import { findUserWithSchoolBranding } from '@/lib/school-branding';
 
 /**
  * Input validation schema
@@ -12,6 +13,28 @@ const loginSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),        
   schoolId: z.string().optional(), // Optional schoolId for multi-tenant        
 });
+
+async function findLoginUser(where: Record<string, unknown>) {
+  try {
+    return await findUserWithSchoolBranding(where);
+  } catch (error) {
+    console.warn('[Login] Branding-aware lookup failed, falling back to base school lookup:', error);
+
+    return prisma.user.findFirst({
+      where,
+      include: {
+        school: {
+          select: {
+            id: true,
+            school_name: true,
+            isActive: true,
+            deactivationMessage: true,
+          },
+        },
+      },
+    });
+  }
+}
 
 /**
  * POST /api/auth/login
@@ -43,19 +66,7 @@ export async function POST(req: Request) {
       userWhere.school_id = schoolId;
     }
 
-    const user = await prisma.user.findFirst({
-      where: userWhere,
-      include: {
-        school: {
-          select: {
-            id: true,
-            school_name: true,
-            isActive: true,
-            deactivationMessage: true,
-          },
-        },
-      },
-    });
+    const user = await findLoginUser(userWhere);
 
     if (!user) {
       return NextResponse.json(
@@ -100,6 +111,7 @@ export async function POST(req: Request) {
       user: {
         ...userWithoutPassword,
         schoolName: user.school?.school_name,
+        schoolLogoUrl: 'logo_url' in (user.school || {}) ? user.school?.logo_url : null,
       },
       token,
     });

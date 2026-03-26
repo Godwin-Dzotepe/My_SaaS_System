@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { withAuth } from '@/lib/api-auth';
 import { calculateAmountLeft, ensureStudentFeeBalancesForSchool, getStudentFeeBalanceModel } from '@/lib/fee-balances';
 import { formatGhanaCedis } from '@/lib/currency';
+import { hasPublishedResult, parseResultPublishPayload, RESULT_PUBLISHED_NOTIFICATION } from '@/lib/result-publishing';
 
 function toPercent(value: number) {
   return `${value.toFixed(1)}%`;
@@ -84,7 +85,7 @@ export const GET = withAuth(
 
       const studentFeeBalanceModel = getStudentFeeBalanceModel();
 
-      const [attendanceRows, scoreRows, feeBalances, announcements, events] = await Promise.all([
+      const [attendanceRows, scoreRows, feeBalances, announcements, events, releaseNotifications] = await Promise.all([
         childIds.length > 0
           ? prisma.attendance.findMany({
               where: {
@@ -107,6 +108,8 @@ export const GET = withAuth(
                 student_id: true,
                 grade: true,
                 totalScore: true,
+                behavior: true,
+                teacherAdvice: true,
                 academic_year: true,
                 term: true,
                 updated_at: true,
@@ -169,6 +172,16 @@ export const GET = withAuth(
               take: 5,
             })
           : Promise.resolve([]),
+        prisma.appNotification.findMany({
+          where: {
+            user_id: session.user.id,
+            title: RESULT_PUBLISHED_NOTIFICATION,
+          },
+          select: {
+            title: true,
+            body: true,
+          },
+        }),
       ]);
 
       const attendanceByChild = new Map<string, { total: number; present: number }>();
@@ -180,7 +193,12 @@ export const GET = withAuth(
       }
 
       const latestScoreByChild = new Map<string, { grade: string | null; totalScore: number | null; academic_year: string; term: string; updated_at: Date }>();
+      const latestAttitudeByChild = new Map<string, { behavior: string | null; teacherAdvice: string | null; academic_year: string; term: string; updated_at: Date }>();
       for (const row of scoreRows) {
+        if (!hasPublishedResult(releaseNotifications, row.student_id, row.academic_year, row.term)) {
+          continue;
+        }
+
         const existing = latestScoreByChild.get(row.student_id);
         if (!existing) {
           latestScoreByChild.set(row.student_id, row);
@@ -197,6 +215,26 @@ export const GET = withAuth(
         if (shouldReplace) {
           latestScoreByChild.set(row.student_id, row);
         }
+
+        if (row.behavior || row.teacherAdvice) {
+          const existingAttitude = latestAttitudeByChild.get(row.student_id);
+          if (!existingAttitude) {
+            latestAttitudeByChild.set(row.student_id, row);
+          } else {
+            const existingAttitudeRank = getTermRank(existingAttitude.term);
+            const nextAttitudeRank = getTermRank(row.term);
+            const shouldReplaceAttitude =
+              row.academic_year > existingAttitude.academic_year ||
+              (row.academic_year === existingAttitude.academic_year && nextAttitudeRank > existingAttitudeRank) ||
+              (row.academic_year === existingAttitude.academic_year &&
+                nextAttitudeRank === existingAttitudeRank &&
+                row.updated_at > existingAttitude.updated_at);
+
+            if (shouldReplaceAttitude) {
+              latestAttitudeByChild.set(row.student_id, row);
+            }
+          }
+        }
       }
 
       const pendingFeesByChild = new Map<string, number>();
@@ -211,6 +249,7 @@ export const GET = withAuth(
           ? (attendance.present / attendance.total) * 100
           : null;
         const latestScore = latestScoreByChild.get(child.id);
+        const latestAttitude = latestAttitudeByChild.get(child.id);
         const pendingFees = pendingFeesByChild.get(child.id) ?? 0;
 
         return {
@@ -222,6 +261,8 @@ export const GET = withAuth(
           avatar: child.name.slice(0, 2).toUpperCase(),
           attendance: attendanceValue !== null ? toPercent(attendanceValue) : 'N/A',
           lastResult: latestScore?.grade || (latestScore?.totalScore !== null && latestScore?.totalScore !== undefined ? String(latestScore.totalScore) : 'N/A'),
+          attitude: latestAttitude?.behavior || 'No attitude update yet.',
+          teacherAdvice: latestAttitude?.teacherAdvice || 'No teacher advice yet.',
           pendingFees,
           latestPeriod: latestScore ? `${latestScore.term} ${latestScore.academic_year}` : null,
         };
@@ -254,6 +295,17 @@ export const GET = withAuth(
           type: 'success' as const,
           sortDate: event.start_date,
         })),
+        ...releaseNotifications
+          .map((notification) => parseResultPublishPayload(notification.body))
+          .filter((payload): payload is NonNullable<ReturnType<typeof parseResultPublishPayload>> => Boolean(payload))
+          .map((payload) => ({
+            id: `result-${payload.studentId}-${payload.academicYear}-${payload.term}`,
+            title: 'Results Published',
+            message: payload.message,
+            time: 'Just released',
+            type: 'success' as const,
+            sortDate: new Date(),
+          })),
         ...(totalPendingFees > 0
           ? [
               {

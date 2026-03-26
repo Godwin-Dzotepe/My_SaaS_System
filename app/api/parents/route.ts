@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
           parent_name: name || account?.name || 'Unknown',
           parent_phone: phone,
           parent_relation: relation || 'Parent/Guardian',
-          temporary_password: account?.temporary_password || null,
+          temporary_password: null,
           password_generated_at: account?.password_generated_at || null,
           created_at: account?.created_at || null,
           children: []

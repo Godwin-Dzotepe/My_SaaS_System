@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/api-auth";
+import { getSchoolColumnSupport } from "@/lib/school-model";
 
 export const POST = withAuth(async ({ req, session }) => {
   try {
@@ -16,6 +17,17 @@ export const POST = withAuth(async ({ req, session }) => {
 
     if (!schoolId || typeof isActive !== "boolean") {
       return NextResponse.json({ error: `Invalid payload. id: ${schoolId}, isActive: ${isActive}` }, { status: 400 });
+    }
+
+    const schoolColumnSupport = await getSchoolColumnSupport();
+    if (!schoolColumnSupport.isActive || !schoolColumnSupport.deactivationMessage) {
+      return NextResponse.json(
+        {
+          error: "School status columns are missing from the database",
+          details: 'Run the migration that adds "School"."isActive" and "School"."deactivationMessage" first.',
+        },
+        { status: 503 }
+      );
     }
 
     console.log("Updating school:", schoolId, "to", isActive);

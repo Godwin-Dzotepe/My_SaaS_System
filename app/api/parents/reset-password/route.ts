@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
         id: true,
         role: true,
         school_id: true,
-        school: { select: { school_name: true } },
+        school: { select: { school_name: true, sms_username: true } },
       },
     });
 
@@ -32,12 +32,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const result = await resetParentTemporaryPassword(parent.id, parent.school?.school_name || 'School');
+    const result = await resetParentTemporaryPassword(
+      parent.id,
+      parent.school?.school_name || 'School',
+      parent.school?.sms_username || null
+    );
 
     return NextResponse.json({
       message: 'Parent password reset successfully',
       parent: result.parent,
-      temporary_password: result.temporaryPassword,
     });
   } catch (error) {
     console.error('Error resetting parent password:', error);

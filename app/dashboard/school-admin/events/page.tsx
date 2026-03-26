@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 
 export default function SchoolAdminEventsPage() {
   const [events, setEvents] = React.useState<any[]>([]);
@@ -26,6 +27,7 @@ export default function SchoolAdminEventsPage() {
   });
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
+  const [eventToDelete, setEventToDelete] = React.useState<string | null>(null);
 
   const fetchEvents = async () => {
     try {
@@ -69,13 +71,15 @@ export default function SchoolAdminEventsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this event?')) return;
     try {
       const res = await fetch(`/api/events/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setEvents(events.filter(e => e.id !== id));
       }
     } catch {}
+    finally {
+      setEventToDelete(null);
+    }
   };
 
   return (
@@ -115,7 +119,7 @@ export default function SchoolAdminEventsPage() {
                         <Calendar className="w-4 h-4" />
                         <span className="text-xs font-bold uppercase">{new Date(event.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                       </div>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => handleDelete(event.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => setEventToDelete(event.id)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -172,6 +176,14 @@ export default function SchoolAdminEventsPage() {
           </Card>
         </div>
       )}
+      <ConfirmationModal
+        isOpen={Boolean(eventToDelete)}
+        onClose={() => setEventToDelete(null)}
+        onConfirm={() => eventToDelete && handleDelete(eventToDelete)}
+        title="Delete Event"
+        message="Are you sure you want to delete this event? This action cannot be undone."
+        confirmText="Delete Event"
+      />
     </div>
   );
 }

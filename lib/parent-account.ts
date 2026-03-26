@@ -9,6 +9,8 @@ interface EnsureParentAccountParams {
   email?: string;
   schoolId: string;
   schoolName: string;
+  schoolSmsUsername?: string | null;
+  childName?: string;
 }
 
 export interface ParentAccountResult {
@@ -29,6 +31,8 @@ export async function ensureParentAccount({
   email,
   schoolId,
   schoolName,
+  schoolSmsUsername,
+  childName,
 }: EnsureParentAccountParams): Promise<ParentAccountResult | null> {
   if (!name || !phone) return null;
 
@@ -72,7 +76,14 @@ export async function ensureParentAccount({
     });
 
     try {
-      await sendPasswordSMS(phone, generatedPassword, schoolName);
+      await sendPasswordSMS({
+        phone,
+        password: generatedPassword,
+        schoolName,
+        smsUsername: schoolSmsUsername,
+        parentName: parentUser.name,
+        childName,
+      });
     } catch (smsError) {
       console.warn('[ParentAccount] Password SMS failed:', smsError);
     }
@@ -118,14 +129,21 @@ export async function ensureParentAccount({
   };
 }
 
-export async function resetParentTemporaryPassword(parentId: string, schoolName: string) {
+export async function resetParentTemporaryPassword(parentId: string, schoolName: string, schoolSmsUsername?: string | null) {
   const parent = await prisma.user.findUnique({
     where: { id: parentId },
     select: {
       id: true,
+      name: true,
       phone: true,
       role: true,
       school_id: true,
+      students: {
+        select: {
+          name: true,
+        },
+        take: 1,
+      },
     },
   });
 
@@ -153,9 +171,21 @@ export async function resetParentTemporaryPassword(parentId: string, schoolName:
   });
 
   try {
-    await sendPasswordSMS(updatedParent.phone, generatedPassword, schoolName);
+    const smsResult = await sendPasswordSMS({
+      phone: updatedParent.phone,
+      password: generatedPassword,
+      schoolName,
+      smsUsername: schoolSmsUsername,
+      parentName: updatedParent.name,
+      childName: parent.students[0]?.name,
+    });
+
+    if (!smsResult.success) {
+      throw new Error(smsResult.error || 'Failed to send parent password SMS');
+    }
   } catch (smsError) {
     console.warn('[ParentAccount] Reset password SMS failed:', smsError);
+    throw smsError;
   }
 
   return {

@@ -4,7 +4,7 @@ import { sendSMS } from '@/lib/sms-service';
 export async function sendSchoolBroadcastToParents(schoolId: string, message: string) {
   const school = await prisma.school.findUnique({
     where: { id: schoolId },
-    select: { school_name: true },
+    select: { school_name: true, sms_username: true },
   });
 
   if (!school) {
@@ -26,7 +26,12 @@ export async function sendSchoolBroadcastToParents(schoolId: string, message: st
   const smsMessage = `${school.school_name}: ${message}`;
 
   const results = await Promise.all(
-    uniquePhones.map((phone) => sendSMS({ phone, message: smsMessage }))
+    uniquePhones.map((phone) => sendSMS({
+      phone,
+      message: smsMessage,
+      senderName: school.school_name,
+      smsUsername: school.sms_username,
+    }))
   );
 
   return {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withAuth } from '@/lib/api-auth';
 import { z } from 'zod';
+import { hasPublishedResult, RESULT_PUBLISHED_NOTIFICATION } from '@/lib/result-publishing';
 
 const querySchema = z.object({
     academic_year: z.string().min(1, 'Academic year is required'),
@@ -51,6 +52,21 @@ export const GET = withAuth(
 
       if (!child) {
         return NextResponse.json({ error: 'Child not found or you do not have permission to view their scores.' }, { status: 404 });
+      }
+
+      const releaseNotifications = await prisma.appNotification.findMany({
+        where: {
+          user_id: session.user.id,
+          title: RESULT_PUBLISHED_NOTIFICATION,
+        },
+        select: {
+          title: true,
+          body: true,
+        },
+      });
+
+      if (!hasPublishedResult(releaseNotifications, childId, academic_year, term)) {
+        return NextResponse.json({ error: 'Results for this period are not published yet.' }, { status: 403 });
       }
 
       // Fetch scores for the validated child
