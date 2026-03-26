@@ -4,6 +4,11 @@ import { prisma } from '@/lib/prisma';
 import { withAuth } from '@/lib/api-auth';
 import { mergeAcademicPeriods } from '@/lib/academic-periods';
 
+type AcademicPeriodLite = {
+  academic_year: string;
+  term: string;
+};
+
 const academicPeriodSchema = z.object({
   academic_year: z.string().min(1, 'Academic year is required.'),
   term: z.string().min(1, 'Term is required.'),
@@ -64,7 +69,7 @@ export const GET = withAuth(
         .filter((period): period is { academic_year: string; term: string } => Boolean(period.academic_year && period.term));
 
       const periods = mergeAcademicPeriods(
-        configuredPeriods.map((period) => ({
+        configuredPeriods.map((period: AcademicPeriodLite) => ({
           academic_year: period.academic_year,
           term: period.term,
         })),
