@@ -14,6 +14,9 @@ const bulkAttendanceSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
+    type StudentRow = { id: string; name: string };
+    type AttendanceRow = { id: string; student_id: string; status: 'present' | 'absent' };
+
     const auth = await authorize(req, ['school_admin', 'secretary', 'teacher']);
     if (auth instanceof NextResponse) return auth;
     const { user } = auth;
@@ -42,15 +45,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'You are not the teacher of this class' }, { status: 403 });
     }
 
-    const students = await prisma.student.findMany({
+    const students: StudentRow[] = await prisma.student.findMany({
       where: { class_id: classId, status: 'active' },
       select: { id: true, name: true }
     });
 
-    const attendance = await prisma.attendance.findMany({
+    const attendance: AttendanceRow[] = await prisma.attendance.findMany({
       where: {
         class_id: classId,
-        student_id: { in: students.map((student) => student.id) },
+        student_id: { in: students.map((student: StudentRow) => student.id) },
         date: {
           gte: startOfDay,
           lte: endOfDay
@@ -58,8 +61,8 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    const data = students.map((student) => {
-      const record = attendance.find((entry) => entry.student_id === student.id);
+    const data = students.map((student: StudentRow) => {
+      const record = attendance.find((entry: AttendanceRow) => entry.student_id === student.id);
       return {
         student_id: student.id,
         name: student.name,
@@ -92,7 +95,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No attendance records provided' }, { status: 400 });
     }
 
-    const uniqueStudentIds = [...new Set(records.map((record) => record.student_id))];
+    const uniqueStudentIds = [...new Set(records.map((record: { student_id: string }) => record.student_id))];
     if (uniqueStudentIds.length !== records.length) {
       return NextResponse.json({ error: 'Duplicate students found in attendance payload' }, { status: 400 });
     }
@@ -134,7 +137,7 @@ export async function POST(req: NextRequest) {
       });
 
       await tx.attendance.createMany({
-        data: records.map((record) => ({
+        data: records.map((record: { student_id: string; status: 'present' | 'absent' }) => ({
           student_id: record.student_id,
           class_id,
           status: record.status,

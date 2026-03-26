@@ -10,6 +10,32 @@ import {
 
 export async function GET(req: NextRequest) {
   try {
+    type ChildBalanceRow = {
+      id: string;
+      schoolFee: {
+        fee_type: string;
+        amount: number;
+        academic_year: string;
+        term: string | null;
+        description: string | null;
+      };
+      amount_paid: number;
+      updated_at: Date;
+    };
+
+    type ChildFeeSummaryRow = {
+      id: string;
+      fee_type: string;
+      description: string | null;
+      academic_year: string;
+      term: string | null;
+      total_amount: number;
+      amount_paid: number;
+      amount_left: number;
+      status: string;
+      updated_at: Date;
+    };
+
     const auth = await authorize(req, ['parent']);
     if (auth instanceof NextResponse) return auth;
     const { user } = auth;
@@ -92,7 +118,7 @@ export async function GET(req: NextRequest) {
     }
 
     const response = children.map((child) => {
-      const childBalances = (balancesByStudent.get(child.id) ?? []).map((balance) => ({
+      const childBalances: ChildFeeSummaryRow[] = (balancesByStudent.get(child.id) ?? []).map((balance: ChildBalanceRow) => ({
         id: balance.id,
         fee_type: balance.schoolFee.fee_type,
         description: balance.schoolFee.description,
@@ -112,9 +138,9 @@ export async function GET(req: NextRequest) {
         school_name: child.school?.school_name || 'N/A',
         balances: childBalances,
         totals: {
-          total_due: childBalances.reduce((sum, row) => sum + row.total_amount, 0),
-          total_paid: childBalances.reduce((sum, row) => sum + row.amount_paid, 0),
-          total_left: childBalances.reduce((sum, row) => sum + row.amount_left, 0),
+          total_due: childBalances.reduce((sum: number, row: ChildFeeSummaryRow) => sum + row.total_amount, 0),
+          total_paid: childBalances.reduce((sum: number, row: ChildFeeSummaryRow) => sum + row.amount_paid, 0),
+          total_left: childBalances.reduce((sum: number, row: ChildFeeSummaryRow) => sum + row.amount_left, 0),
         },
       };
     });

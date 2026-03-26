@@ -183,7 +183,7 @@ export const POST = withAuth(
       const schoolSmsUsername = school?.sms_username || null;
       const publisherName = admin?.name || 'School Admin';
 
-      const notifications = [];
+      const notifications: Array<{ user_id: string; title: string; body: string }> = [];
       const smsQueue = new Map<string, string>();
 
       for (const student of students) {
