@@ -9,6 +9,48 @@ import {
 
 export async function GET(req: NextRequest) {
   try {
+    type BalanceRow = {
+      id: string;
+      student_id: string;
+      school_fee_id: string;
+      amount_paid: number;
+      updated_at: Date;
+      student: {
+        name: string;
+        parent_name: string | null;
+        parent_phone: string | null;
+        class: { class_name: string } | null;
+        parent: { name: string; phone: string } | null;
+      };
+      schoolFee: {
+        id: string;
+        fee_type: string;
+        amount: number;
+        academic_year: string;
+        term: string | null;
+        description: string | null;
+      };
+    };
+
+    type FeeCheckerRow = {
+      id: string;
+      student_id: string;
+      school_fee_id: string;
+      parent_name: string;
+      parent_phone: string;
+      child_name: string;
+      class_name: string;
+      fee_type: string;
+      fee_description: string | null;
+      academic_year: string;
+      term: string | null;
+      total_amount: number;
+      amount_paid: number;
+      amount_left: number;
+      status: string;
+      updated_at: Date;
+    };
+
     const auth = await authorize(req, ['school_admin', 'finance_admin', 'secretary']);
     if (auth instanceof NextResponse) return auth;
     const { user } = auth;
@@ -30,7 +72,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search')?.trim().toLowerCase() || '';
 
-    const balances = await studentFeeBalanceModel.findMany({
+    const balances: BalanceRow[] = await studentFeeBalanceModel.findMany({
       where: {
         school_id: user.school_id,
         student: {
@@ -72,7 +114,7 @@ export async function GET(req: NextRequest) {
     });
 
     const rows = balances
-      .map((balance) => {
+      .map((balance: BalanceRow): FeeCheckerRow => {
         const totalAmount = balance.schoolFee.amount;
         const amountPaid = Number(balance.amount_paid || 0);
         const amountLeft = calculateAmountLeft(totalAmount, amountPaid);
@@ -98,7 +140,7 @@ export async function GET(req: NextRequest) {
           updated_at: balance.updated_at,
         };
       })
-      .filter((row) => {
+      .filter((row: FeeCheckerRow) => {
         if (!search) return true;
         return (
           row.parent_name.toLowerCase().includes(search) ||
