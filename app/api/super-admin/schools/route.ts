@@ -158,7 +158,7 @@ export async function POST(request: Request) {
       logoUrl = upload.url;
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const schoolData: Prisma.SchoolCreateInput = {
         school_name: schoolName,
         address,

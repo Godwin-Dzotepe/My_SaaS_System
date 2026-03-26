@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
+import type { Prisma } from '@prisma/client';
 
 const individualPromotionSchema = z.object({
   student_id: z.string().uuid(),
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
 
       const graduationYear = new Date().getFullYear();
 
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.student.update({
           where: { id: student_id },
           data: { status: 'completed' },
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Student is already in this class' }, { status: 400 });
     }
 
-    const updatedStudent = await prisma.$transaction(async (tx) => {
+    const updatedStudent = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const result = await tx.student.update({
         where: { id: student_id },
         data: { class_id: targetClass.id },

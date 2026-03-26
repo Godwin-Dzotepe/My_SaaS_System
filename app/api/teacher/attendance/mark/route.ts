@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
 import { AttendanceStatus } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 // POST /api/teacher/attendance/mark
 // Marks attendance for students in a given class and date
@@ -44,7 +45,7 @@ export const POST = withAuth(async ({ req, session }) => {
     attendanceDate.setHours(0, 0, 0, 0); // Normalize date to midnight for consistent comparison
 
     // Process attendance records in a transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // First, delete any existing attendance for this class and date to ensure a clean state
       await tx.attendance.deleteMany({
         where: {
