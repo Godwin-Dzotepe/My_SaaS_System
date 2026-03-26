@@ -8,6 +8,18 @@ export const dynamic = 'force-dynamic';
 export const GET = withAuth(
   async ({ req, session }) => {
     try {
+      type ClassSummaryRow = {
+        id: string;
+        class_name: string;
+        teacher: { name: string } | null;
+        _count: { students: number };
+      };
+
+      type AttendanceSummaryRow = {
+        class_id: string;
+        status: 'present' | 'absent';
+      };
+
       const url = new URL(req.url);
       const dateParam = url.searchParams.get('date');
       const date = dateParam ? new Date(dateParam) : new Date();
@@ -19,7 +31,7 @@ export const GET = withAuth(
       endOfDay.setHours(23, 59, 59, 999);
 
       // Get all classes for the school
-      const classes = await prisma.class.findMany({
+      const classes: ClassSummaryRow[] = await prisma.class.findMany({
         where: { school_id: session.user.school_id! },
         select: {
           id: true,
@@ -30,7 +42,7 @@ export const GET = withAuth(
       });
 
       // Get attendance records for the date
-      const attendances = await prisma.attendance.findMany({
+      const attendances: AttendanceSummaryRow[] = await prisma.attendance.findMany({
         where: {
           date: { gte: startOfDay, lte: endOfDay },
           student: { school_id: session.user.school_id! }
@@ -41,10 +53,10 @@ export const GET = withAuth(
         }
       });
 
-      const result = classes.map(c => {
-        const classAttendances = attendances.filter(a => a.class_id === c.id);
-        const presentCount = classAttendances.filter(a => a.status === 'present').length;
-        const absentCount = classAttendances.filter(a => a.status === 'absent').length;
+      const result = classes.map((c: ClassSummaryRow) => {
+        const classAttendances = attendances.filter((a: AttendanceSummaryRow) => a.class_id === c.id);
+        const presentCount = classAttendances.filter((a: AttendanceSummaryRow) => a.status === 'present').length;
+        const absentCount = classAttendances.filter((a: AttendanceSummaryRow) => a.status === 'absent').length;
         return {
           id: c.id,
           class_name: c.class_name,
