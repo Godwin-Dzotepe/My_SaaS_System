@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authorize, validateSchool } from '@/lib/api-auth';
-import { Prisma } from '@prisma/client';
 import { ensureParentAccount } from '@/lib/parent-account';
 
 function normalizeString(value: unknown) {
@@ -11,8 +10,15 @@ function normalizeString(value: unknown) {
 }
 
 function getSupportedStudentData(data: Record<string, unknown>) {
-  const studentModel = Prisma.dmmf.datamodel.models.find((model) => model.name === 'Student');
-  const supportedFields = new Set((studentModel?.fields || []).map((field) => field.name));
+  const studentModel = (prisma as any)?._runtimeDataModel?.models?.Student;
+  const fields = studentModel?.fields;
+  const supportedFields = new Set(
+    Array.isArray(fields)
+      ? fields.map((field: any) => field?.name).filter(Boolean)
+      : fields && typeof fields === 'object'
+        ? Object.keys(fields)
+        : []
+  );
   return Object.fromEntries(Object.entries(data).filter(([key]) => supportedFields.has(key)));
 }
 

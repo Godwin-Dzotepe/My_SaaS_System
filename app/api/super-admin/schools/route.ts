@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import { getSchoolColumnSupport, getSupportedSchoolData } from '@/lib/school-model';
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 async function authorizeSuperAdmin() {
   const cookieStore = await cookies();
@@ -158,8 +159,8 @@ export async function POST(request: Request) {
       logoUrl = upload.url;
     }
 
-    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const schoolData: Prisma.SchoolCreateInput = {
+    const result = await prisma.$transaction(async (tx: Tx) => {
+      const schoolData: Record<string, unknown> = {
         school_name: schoolName,
         address,
         phone,
@@ -176,7 +177,7 @@ export async function POST(request: Request) {
       }
 
       const school = await tx.school.create({
-        data: supportedSchoolData as Prisma.SchoolCreateInput,
+        data: supportedSchoolData as any,
       });
 
       const hashedPassword = await bcrypt.hash(adminPassword, 10);

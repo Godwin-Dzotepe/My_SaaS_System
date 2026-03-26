@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
-import type { Prisma } from '@prisma/client';
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 const promoteByClassSchema = z.object({
   school_id: z.string().uuid(),
@@ -134,7 +135,7 @@ export async function POST(req: NextRequest) {
     const promotedStudents = studentsInFromClass.filter((student) => !repeatSet.has(student.id));
     const repeatedStudents = studentsInFromClass.filter((student) => repeatSet.has(student.id));
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: Tx) => {
       if (promotedStudents.length > 0) {
         await tx.student.updateMany({
           where: {

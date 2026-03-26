@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withAuth } from '@/lib/api-auth';
-import type { Prisma } from '@prisma/client';
 
 const scoreModelHasField = (fieldName: string) => {
   try {
@@ -101,7 +100,7 @@ export const GET = withAuth(
         });
       }
 
-      const accessScopes: Prisma.ScoreWhereInput[] = [
+      const accessScopes: any[] = [
         ...(teacherClassIds.length > 0
           ? [
               {
@@ -126,7 +125,7 @@ export const GET = withAuth(
           : []),
       ];
 
-      const where: Prisma.ScoreWhereInput = {
+      const where: any = {
         student: {
           is: {
             school_id,

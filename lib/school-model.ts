@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 type SchoolColumnSupport = {
@@ -11,9 +10,14 @@ type SchoolColumnSupport = {
 let cachedSchoolColumnSupport: SchoolColumnSupport | null = null;
 
 export function getSupportedSchoolData(data: Record<string, unknown>) {
-  const schoolModel = Prisma.dmmf.datamodel.models.find((model) => model.name === 'School');
+  const schoolModel = (prisma as any)?._runtimeDataModel?.models?.School;
+  const fields = schoolModel?.fields;
   const supportedFields = new Set(
-    (schoolModel?.fields || []).map((field) => field.name)
+    Array.isArray(fields)
+      ? fields.map((field: any) => field?.name).filter(Boolean)
+      : fields && typeof fields === 'object'
+        ? Object.keys(fields)
+        : []
   );
 
   const filteredEntries = Object.entries(data).filter(([key]) => supportedFields.has(key));
@@ -31,13 +35,13 @@ export async function getSchoolColumnSupport(): Promise<SchoolColumnSupport> {
   }
 
   try {
-    const columns = await prisma.$queryRaw<Array<{ column_name: string }>>(Prisma.sql`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = current_schema()
-        AND table_name = 'School'
-        AND column_name IN ('logo_url', 'sms_username', 'isActive', 'deactivationMessage')
-    `);
+    const columns = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'School'
+         AND column_name IN ('logo_url', 'sms_username', 'isActive', 'deactivationMessage')`
+    );
 
     const availableColumns = new Set(columns.map((column) => column.column_name));
 

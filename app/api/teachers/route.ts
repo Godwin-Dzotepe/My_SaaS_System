@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 import { authorize } from '@/lib/api-auth';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -20,8 +19,15 @@ const teacherCreateSchema = z.object({
 });
 
 function getSupportedUserCreateData(data: Record<string, unknown>) {
-  const userModel = Prisma.dmmf.datamodel.models.find((model) => model.name === 'User');
-  const supportedFields = new Set((userModel?.fields || []).map((field) => field.name));
+  const userModel = (prisma as any)?._runtimeDataModel?.models?.User;
+  const fields = userModel?.fields;
+  const supportedFields = new Set(
+    Array.isArray(fields)
+      ? fields.map((field: any) => field?.name).filter(Boolean)
+      : fields && typeof fields === 'object'
+        ? Object.keys(fields)
+        : []
+  );
 
   return {
     data: Object.fromEntries(Object.entries(data).filter(([key]) => supportedFields.has(key))),

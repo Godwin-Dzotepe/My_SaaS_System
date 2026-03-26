@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
-import type { Prisma } from '@prisma/client';
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 const bulkAttendanceSchema = z.object({
   class_id: z.string().uuid(),
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'One or more students do not belong to this class' }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: Tx) => {
       await tx.attendance.deleteMany({
         where: {
           class_id,

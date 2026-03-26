@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { authorize } from '@/lib/api-auth';
 import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import { getSupportedSchoolData } from '@/lib/school-model';
-import type { Prisma } from '@prisma/client';
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 async function parseSchoolUpdateRequest(req: NextRequest) {
   const contentType = req.headers.get('content-type') || '';
@@ -174,7 +175,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'School not found' }, { status: 404 });
     }
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: Tx) => {
       await tx.attendance.deleteMany({
         where: { student: { school_id: schoolId } },
       });

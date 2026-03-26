@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
 import { ensureParentAccount } from '@/lib/parent-account';
@@ -148,9 +147,14 @@ async function saveProfileImage(file: File) {
 }
 
 function getSupportedStudentCreateData(data: Record<string, unknown>) {
-  const studentModel = Prisma.dmmf.datamodel.models.find((model) => model.name === 'Student');
+  const studentModel = (prisma as any)?._runtimeDataModel?.models?.Student;
+  const fields = studentModel?.fields;
   const supportedFields = new Set(
-    (studentModel?.fields || []).map((field) => field.name)
+    Array.isArray(fields)
+      ? fields.map((field: any) => field?.name).filter(Boolean)
+      : fields && typeof fields === 'object'
+        ? Object.keys(fields)
+        : []
   );
 
   const filteredEntries = Object.entries(data).filter(([key]) => supportedFields.has(key));

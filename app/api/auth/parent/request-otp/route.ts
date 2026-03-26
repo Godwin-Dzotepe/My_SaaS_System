@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { generateOTP, hashOTP, sendOTPSMS } from '@/lib/sms-service';
-import { Prisma } from '@prisma/client';
 
 /**
  * Rate limiting configuration
@@ -34,7 +33,7 @@ export async function POST(req: NextRequest) {
     const { phone, schoolId } = validation.data;
 
     // 1. Fix TypeScript issues with strongly typed Prisma Where Input
-    const userWhere: Prisma.UserWhereInput = {
+    const userWhere: any = {
       phone,
       role: 'parent',
     };
