@@ -1,34 +1,40 @@
 import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
-const globalForPrisma = global as unknown as { 
-  prisma: PrismaClient,
-  pool: Pool
+const globalForPrisma = global as unknown as {
+  prisma?: PrismaClient
+  prismaAdapter?: PrismaMariaDb
+};
+
+const getMariaDbConfig = () => {
+  const databaseUrl = process.env.DATABASE_URL ?? '';
+  const parsed = new URL(databaseUrl);
+
+  return {
+    host: parsed.hostname,
+    port: Number(parsed.port || 3306),
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password || ''),
+    database: decodeURIComponent(parsed.pathname.replace(/^\//, '')),
+  };
 };
 
 const getPrisma = () => {
   if (globalForPrisma.prisma) return globalForPrisma.prisma;
 
-  console.log('Initializing Prisma with REAL PG adapter...');
-  
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL
-  });
-  
-  const adapter = new PrismaPg(pool as any);
+  const adapter =
+    globalForPrisma.prismaAdapter ??
+    new PrismaMariaDb(getMariaDbConfig());
 
-  const prisma = new PrismaClient({
-    adapter: adapter as any,
-    omit: {}
-  });
+  const prisma = new PrismaClient({ adapter });
 
   if (process.env.NODE_ENV !== 'production') {
     globalForPrisma.prisma = prisma;
-    globalForPrisma.pool = pool;
+    globalForPrisma.prismaAdapter = adapter;
   }
   return prisma;
 };
 
 export const prisma = getPrisma();
 export default prisma;
+

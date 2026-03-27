@@ -105,13 +105,14 @@ export async function POST(req: Request) {
 
     // 4. Remove sensitive data from response
     const { password: _, ...userWithoutPassword } = user;
+    const schoolData = user.school as { school_name?: string; logo_url?: string | null } | null | undefined;
 
     const response = NextResponse.json({
       message: 'Login successful',
       user: {
         ...userWithoutPassword,
-        schoolName: user.school?.school_name,
-        schoolLogoUrl: 'logo_url' in (user.school || {}) ? user.school?.logo_url : null,
+        schoolName: schoolData?.school_name,
+        schoolLogoUrl: schoolData?.logo_url ?? null,
       },
       token,
     });

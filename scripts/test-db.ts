@@ -1,16 +1,22 @@
 import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import 'dotenv/config';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+const getMariaDbConfig = () => {
+  const databaseUrl = process.env.DATABASE_URL ?? '';
+  const parsed = new URL(databaseUrl);
 
-const adapter = new PrismaPg(pool as any);
+  return {
+    host: parsed.hostname,
+    port: Number(parsed.port || 3306),
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password || ''),
+    database: decodeURIComponent(parsed.pathname.replace(/^\//, '')),
+  };
+};
+
 const prisma = new PrismaClient({
-  adapter: adapter as any,
-  omit: {}
+  adapter: new PrismaMariaDb(getMariaDbConfig()),
 });
 
 async function main() {
@@ -30,5 +36,5 @@ main()
   .catch(e => console.error(e))
   .finally(async () => {
     await prisma.$disconnect();
-    await pool.end();
   });
+

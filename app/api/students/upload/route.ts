@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { authorize, validateSchool } from '@/lib/api-auth';
 import { ensureParentAccount } from '@/lib/parent-account';
 
@@ -7,6 +8,13 @@ function normalizeString(value: unknown) {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeClassKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 }
 
 function getSupportedStudentData(data: Record<string, unknown>) {
@@ -56,7 +64,7 @@ export async function POST(req: NextRequest) {
     });
 
     const classesById = new Map(classes.map((schoolClass) => [schoolClass.id, schoolClass]));
-    const classesByName = new Map(classes.map((schoolClass) => [schoolClass.class_name.trim().toLowerCase(), schoolClass]));
+    const classesByName = new Map(classes.map((schoolClass) => [normalizeClassKey(schoolClass.class_name), schoolClass]));
 
     if (fallbackClassId) {
       const fallbackClass = classesById.get(fallbackClassId);
@@ -86,10 +94,16 @@ export async function POST(req: NextRequest) {
 
         const rowClassId = normalizeString(row.class_id);
         const rowClassName = normalizeString(row.class_name);
+        const normalizedRowClassName = rowClassName ? normalizeClassKey(rowClassName) : undefined;
         const resolvedClass = rowClassId
           ? classesById.get(rowClassId)
-          : rowClassName
-            ? classesByName.get(rowClassName.toLowerCase())
+          : normalizedRowClassName
+            ? classesById.get(normalizedRowClassName) ||
+              classesByName.get(normalizedRowClassName) ||
+              classes.find((item) => {
+                const itemKey = normalizeClassKey(item.class_name);
+                return itemKey.includes(normalizedRowClassName) || normalizedRowClassName.includes(itemKey);
+              })
             : fallbackClassId
               ? classesById.get(fallbackClassId)
               : undefined;
@@ -175,7 +189,7 @@ export async function POST(req: NextRequest) {
         };
 
         const student = await prisma.student.create({
-          data: getSupportedStudentData(studentData),
+          data: getSupportedStudentData(studentData) as Prisma.StudentUncheckedCreateInput,
           select: { id: true, name: true },
         });
 
@@ -186,13 +200,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (createdStudents.length === 0) {
+      return NextResponse.json({
+        error: errors[0] || 'No students were imported.',
+        message: 'No students imported',
+        count: 0,
+        failed: errors.length,
+        errors,
+        parentAccounts: Array.from(parentAccounts.values()),
+      }, { status: 400 });
+    }
+
     return NextResponse.json({
       message: `${createdStudents.length} students imported successfully`,
       count: createdStudents.length,
       failed: errors.length,
       errors,
       parentAccounts: Array.from(parentAccounts.values()),
-    }, { status: createdStudents.length > 0 ? 201 : 400 });
+    }, { status: 201 });
   } catch (error: any) {
     console.error('Error in bulk upload:', error);
     return NextResponse.json({ error: error.message || 'Failed to process file' }, { status: 500 });

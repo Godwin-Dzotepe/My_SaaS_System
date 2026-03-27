@@ -204,8 +204,9 @@ export async function sendSMS({ phone, message, senderName, smsUsername }: SendS
   try {
     const formattedPhone = formatPhoneForProvider(phone);
     const formattedSenderName = formatSenderName(senderName);
-    const resolvedSmsUsername = (smsUsername || process.env.SMS_USERNAME || '').trim();
-    const resolvedSenderId = (resolvedSmsUsername || formattedSenderName || '').trim();
+    // Force a single approved sender id for all schools to avoid provider 401
+    // errors when school-level sender ids are not approved.
+    const approvedSenderId = (process.env.SMS_USERNAME || 'FutureLink').trim();
     const hasApiKey = Boolean(process.env.SMS_API_KEY);
     const mnotifyEndpoint = (
       process.env.NMOLIFY_API_URL ||
@@ -220,13 +221,13 @@ export async function sendSMS({ phone, message, senderName, smsUsername }: SendS
       };
     }
 
-    if (hasApiKey && resolvedSmsUsername) {
+    if (hasApiKey && approvedSenderId) {
       try {
         const primaryResult = await sendViaHttpSmsProvider({
           apiKey: process.env.SMS_API_KEY!,
           phone: formattedPhone,
           message,
-          senderId: resolvedSenderId || undefined,
+          senderId: approvedSenderId,
           endpoint: mnotifyEndpoint,
         });
 
@@ -244,10 +245,10 @@ export async function sendSMS({ phone, message, senderName, smsUsername }: SendS
       }
     }
 
-    if (hasApiKey && !resolvedSmsUsername) {
+    if (hasApiKey && !approvedSenderId) {
       return {
         success: false,
-        error: 'SMS username is missing. Add SMS_USERNAME in env or save the school SMS username before sending.',
+        error: 'SMS sender id is missing. Add SMS_USERNAME in env (recommended: FutureLink).',
       };
     }
 

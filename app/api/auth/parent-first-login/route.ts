@@ -154,6 +154,13 @@ export async function POST(req: Request) {
     const parentContext = resolveParentContext(students[0], phone);
     const matchedPhone = resolveMatchedPhone(students[0], phoneVariants) || phone.trim();
 
+    if (!school) {
+      return NextResponse.json(
+        { error: 'School configuration is missing for this student.' },
+        { status: 500 }
+      );
+    }
+
     let user = await prisma.user.findFirst({
       where: { phone: { in: phoneVariants } },
       select: {
@@ -245,6 +252,15 @@ export async function POST(req: Request) {
     });
 
     if (!smsResult.success) {
+      if (process.env.NODE_ENV !== 'production') {
+        return NextResponse.json({
+          message: 'Check your phone. FutureLink has sent you an SMS password to access your portal.',
+          warning: smsResult.error || 'Unable to send the parent password by SMS right now.',
+          fallbackPassword: rawPassword,
+          phone: matchedPhone,
+        });
+      }
+
       return NextResponse.json(
         { error: smsResult.error || 'Unable to send the parent password by SMS right now.' },
         { status: 502 }
@@ -252,7 +268,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({
-      message: `Password sent successfully to ${matchedPhone}.`,
+      message: 'Check your phone. FutureLink has sent you an SMS password to access your portal.',
     });
   } catch (error) {
     console.error('[Parent First Login Error]:', error instanceof Error ? error.message : 'Unknown error');

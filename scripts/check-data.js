@@ -1,18 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
+const { createPrismaClient } = require('./prisma-client');
 require('dotenv').config();
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
-
-const adapter = new PrismaPg(pool);
-
-const prisma = new PrismaClient({
-  adapter: adapter,
-  omit: {}
-});
+const prisma = createPrismaClient();
 
 async function main() {
   console.log('--- Schools ---');
@@ -36,4 +25,6 @@ async function main() {
 
 main()
   .catch(e => console.error(e))
-  .finally(() => prisma.$disconnect().then(() => pool.end()));
+  .finally(() => prisma.$disconnect());
+
+

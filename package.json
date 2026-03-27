@@ -8,12 +8,16 @@
     "start": "next start",
     "lint": "node ./node_modules/eslint/bin/eslint.js",
     "lint:parent": "node ./node_modules/eslint/bin/eslint.js app/dashboard/parent app/api/parent",
-    "prisma:generate": "node ./node_modules/prisma/build/index.js generate"
+    "prisma:generate": "node ./node_modules/prisma/build/index.js generate",
+    "db:mysql:setup": "node scripts/setup-mysql.js",
+    "db:mysql:migrate": "node ./node_modules/prisma/build/index.js migrate dev --name init_mysql",
+    "db:transfer:pg-to-mysql": "node scripts/migrate-postgres-to-mysql.js"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"commonjs\"} scripts/seed-data.ts"
   },
   "dependencies": {
+    "@prisma/adapter-mariadb": "^7.5.0",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "@types/bcrypt": "^6.0.0",

@@ -149,7 +149,7 @@ export default function EditSchoolPage() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Edit School</h1>
-              <p className="text-gray-600">Update school branding, SMS username, and contact information.</p>
+              <p className="text-gray-600">Update school branding and contact information. SMS sender ID is globally controlled.</p>
             </div>
           </div>
 
@@ -209,15 +209,16 @@ export default function EditSchoolPage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">School SMS Username</label>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">School SMS Username (optional metadata)</label>
                     <input
                       type="text"
                       name="sms_username"
                       value={formData.sms_username}
                       onChange={handleChange}
                       className="w-full rounded-lg border border-gray-200 px-4 py-2 outline-none transition-all focus:ring-2 focus:ring-blue-500"
-                      placeholder="Provider username for this school"
+                      placeholder="Optional provider account username (record only)"
                     />
+                    <p className="mt-2 text-xs text-gray-500">Outgoing SMS sender ID is fixed globally to FutureLink.</p>
                   </div>
 
                   <div className="flex justify-end gap-3 border-t pt-6">

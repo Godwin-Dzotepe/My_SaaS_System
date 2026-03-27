@@ -25,12 +25,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
-const importFields = [
+const importFields: ReadonlyArray<{ key: string; label: string; required?: boolean }> = [
   { key: 'name', label: 'Student Name', required: true },
   { key: 'student_number', label: 'Student Number' },
   { key: 'class_name', label: 'Class Name' },
-  { key: 'parent_name', label: 'Parent Name' },
-  { key: 'parent_phone', label: 'Parent Phone' },
   { key: 'parent_relation', label: 'Parent Relation' },
   { key: 'date_of_birth', label: 'Date of Birth' },
   { key: 'gender', label: 'Gender' },
@@ -59,7 +57,7 @@ const importFields = [
   { key: 'emergency_contact_name', label: 'Emergency Contact Name' },
   { key: 'emergency_contact_phone', label: 'Emergency Contact Phone' },
   { key: 'medical_notes', label: 'Medical Notes' },
-] as const;
+];
 
 export default function SecretaryBulkUpload() {
   const [step, setStep] = React.useState(1);
@@ -239,7 +237,13 @@ export default function SecretaryBulkUpload() {
 
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.error || 'Import failed');
+        const detailLines = Array.isArray(result.errors)
+          ? result.errors
+              .slice(0, 5)
+              .filter((line: unknown) => typeof line === 'string' && line !== result.error)
+          : [];
+        const detailText = detailLines.length > 0 ? `\n${detailLines.join('\n')}` : '';
+        throw new Error((result.error || 'Import failed') + detailText);
       }
 
       setImportResult({
@@ -539,3 +543,5 @@ export default function SecretaryBulkUpload() {
     </div>
   );
 }
+
+

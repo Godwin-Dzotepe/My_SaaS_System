@@ -1,16 +1,22 @@
 import "dotenv/config";
 import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+const getMariaDbConfig = () => {
+  const databaseUrl = process.env.DATABASE_URL ?? '';
+  const parsed = new URL(databaseUrl);
 
-const adapter = new PrismaPg(pool as any);
-const prisma = new PrismaClient({ 
-  adapter,
-  omit: {}
+  return {
+    host: parsed.hostname,
+    port: Number(parsed.port || 3306),
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password || ''),
+    database: decodeURIComponent(parsed.pathname.replace(/^\//, '')),
+  };
+};
+
+const prisma = new PrismaClient({
+  adapter: new PrismaMariaDb(getMariaDbConfig()),
 });
 
 async function main() {
@@ -42,12 +48,10 @@ async function main() {
       const studentClassId = (record as any).student?.class_id;
 
       if (studentClassId) {
-        // Use raw SQL to update the class_id
-        await prisma.$executeRawUnsafe(
-          `UPDATE "Attendance" SET "class_id" = $1 WHERE id = $2`,
-          studentClassId,
-          record.id
-        );
+        await prisma.attendance.update({
+          where: { id: record.id },
+          data: { class_id: studentClassId },
+        });
         console.log(`Updated attendance record ${record.id} with class_id: ${studentClassId}`);
       } else {
         console.warn(`Could not determine class_id for attendance record ${record.id}. Student or student.class_id is missing.`);
@@ -64,3 +68,4 @@ async function main() {
 }
 
 main();
+

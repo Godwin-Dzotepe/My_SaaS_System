@@ -1,17 +1,10 @@
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
+const { createPrismaClient } = require('./prisma-client');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 console.log('Creating Super Admin...');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
-
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = createPrismaClient();
 
 async function main() {
   const hashedPassword = await bcrypt.hash('Godwin2004', 10);
@@ -46,5 +39,6 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
-    await pool.end();
   });
+
+

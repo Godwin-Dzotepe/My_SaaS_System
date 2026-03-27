@@ -62,6 +62,7 @@ export const GET = withAuth(
           id: true,
           name: true,
           student_number: true,
+          school_id: true,
           class: {
             select: {
               class_name: true,

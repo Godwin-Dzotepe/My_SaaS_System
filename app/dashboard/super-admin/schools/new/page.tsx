@@ -71,7 +71,7 @@ export default function NewSchool() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Add New School</h1>
-            <p className="text-gray-600">Register a new school, upload its logo, and save its SMS username.</p>
+            <p className="text-gray-600">Register a new school and upload its logo. SMS sender ID is globally controlled.</p>
           </div>
         </div>
 
@@ -105,9 +105,9 @@ export default function NewSchool() {
                     <Input name="phone" placeholder="e.g. +233240000000" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">School SMS Username</label>
-                    <Input name="smsUsername" placeholder="Provider username for this school" />
-                    <p className="text-xs text-gray-500">Used by the SMS provider when this school sends messages.</p>
+                    <label className="text-sm font-medium text-gray-700">School SMS Username (optional metadata)</label>
+                    <Input name="smsUsername" placeholder="Optional provider account username (record only)" />
+                    <p className="text-xs text-gray-500">Sender ID for outgoing SMS is fixed globally to FutureLink.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -186,7 +186,7 @@ export default function NewSchool() {
                     <MessageSquare className="h-4 w-4" />
                     SMS setup note
                   </div>
-                  <p>The platform API key stays on the server. Each school can still have its own SMS username saved here for provider-side routing.</p>
+                  <p>The platform API key and sender ID are managed globally. Outgoing SMS uses FutureLink as sender ID for all schools.</p>
                 </div>
               </CardContent>
             </Card>

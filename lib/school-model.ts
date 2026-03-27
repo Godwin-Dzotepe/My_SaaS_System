@@ -35,13 +35,33 @@ export async function getSchoolColumnSupport(): Promise<SchoolColumnSupport> {
   }
 
   try {
-    const columns = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
-      `SELECT column_name
-       FROM information_schema.columns
-       WHERE table_schema = current_schema()
-         AND table_name = 'School'
-         AND column_name IN ('logo_url', 'sms_username', 'isActive', 'deactivationMessage')`
-    );
+    let columns: Array<{ column_name: string }> = [];
+
+    try {
+      const databaseResult = await prisma.$queryRawUnsafe<Array<{ db_name: string | null }>>(
+        `SELECT DATABASE() AS db_name`
+      );
+      const dbName = databaseResult[0]?.db_name;
+
+      if (dbName) {
+        columns = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
+          `SELECT COLUMN_NAME AS column_name
+           FROM information_schema.columns
+           WHERE table_schema = ?
+             AND table_name = 'School'
+             AND COLUMN_NAME IN ('logo_url', 'sms_username', 'isActive', 'deactivationMessage')`,
+          dbName
+        );
+      }
+    } catch {
+      columns = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'School'
+           AND column_name IN ('logo_url', 'sms_username', 'isActive', 'deactivationMessage')`
+      );
+    }
 
     const availableColumns = new Set(columns.map((column) => column.column_name));
 

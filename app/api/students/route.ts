@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { authorize, validateSchool } from '@/lib/api-auth';
 import { ensureParentAccount } from '@/lib/parent-account';
@@ -402,7 +403,7 @@ export async function POST(req: NextRequest) {
     }
 
     const newStudent = await prisma.student.create({
-      data: supportedStudentData,
+      data: supportedStudentData as Prisma.StudentUncheckedCreateInput,
       include: {
         parent: {
           select: {

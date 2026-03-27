@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { authorize } from '@/lib/api-auth';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -200,7 +201,7 @@ export async function POST(req: NextRequest) {
     const { data: supportedUserData, unsupportedFields } = getSupportedUserCreateData(dataObj);
 
     const newTeacher = await prisma.user.create({
-      data: supportedUserData,
+      data: supportedUserData as Prisma.UserUncheckedCreateInput,
     });
 
     return NextResponse.json({
