@@ -64,6 +64,41 @@ function buildSmsProviderError(status: number, rawText: string, parsedBody: unkn
   return `SMS provider returned ${status}`;
 }
 
+function isProviderResponseSuccessful(
+  responseOk: boolean,
+  data:
+    | {
+        errorMessage?: string;
+        message?: string;
+        SMSMessageData?: {
+          Message?: string;
+          Recipients?: Array<{
+            statusCode?: string;
+            status?: string;
+            messageId?: string;
+          }>;
+        };
+      }
+    | null
+): boolean {
+  if (!responseOk) return false;
+  if (data?.errorMessage) return false;
+
+  const recipient = data?.SMSMessageData?.Recipients?.[0];
+  const statusCode = (recipient?.statusCode || '').trim();
+  const recipientStatus = (recipient?.status || '').toLowerCase();
+  const providerMessage = (data?.SMSMessageData?.Message || data?.message || '').toLowerCase();
+
+  if (statusCode === '0') return true;
+  if (recipientStatus.includes('success') || recipientStatus.includes('sent')) return true;
+  if (providerMessage.includes('sent successfully') || providerMessage.includes('success')) return true;
+
+  // Some providers return HTTP 200 with sparse payload on success.
+  if (!data) return true;
+
+  return false;
+}
+
 async function sendViaHttpSmsProvider({
   apiKey,
   phone,
@@ -117,10 +152,10 @@ async function sendViaHttpSmsProvider({
     }>(rawText);
     const recipient = data?.SMSMessageData?.Recipients?.[0];
 
-    if (response.ok && recipient?.statusCode === '0') {
+    if (isProviderResponseSuccessful(response.ok, data)) {
       return {
         success: true,
-        messageId: recipient.messageId,
+        messageId: recipient?.messageId,
       };
     }
 

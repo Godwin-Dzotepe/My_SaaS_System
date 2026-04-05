@@ -24,6 +24,8 @@ interface Score {
   totalScore: number | null;
   grade: string | null;
   remark: string | null;
+  behavior: string | null;
+  teacherAdvice: string | null;
   subject: {
     subject_name: string;
   };
@@ -265,6 +267,8 @@ export default function ParentResultsPage() {
                               <TableHead>Total</TableHead>
                               <TableHead>Grade</TableHead>
                               <TableHead>Remark</TableHead>
+                              <TableHead>Behavior</TableHead>
+                              <TableHead>Teacher Advice</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -280,6 +284,8 @@ export default function ParentResultsPage() {
                                   </span>
                                 </TableCell>
                                 <TableCell className="text-gray-500">{score.remark ?? 'N/A'}</TableCell>
+                                <TableCell className="text-gray-500">{score.behavior ?? 'N/A'}</TableCell>
+                                <TableCell className="text-gray-500">{score.teacherAdvice ?? 'N/A'}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>

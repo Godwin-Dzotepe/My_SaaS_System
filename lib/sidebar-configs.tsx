@@ -60,6 +60,7 @@ export const TEACHER_SIDEBAR_ITEMS = [
   { label: 'Present Students', href: '/dashboard/teacher/attendance/present', icon: <CheckSquare className="w-5 h-5" /> },
   { label: 'Absent Students', href: '/dashboard/teacher/attendance/absent', icon: <XSquare className="w-5 h-5" /> },
   { label: 'Scoring', href: '/dashboard/teacher/scoring', icon: <FileText className="w-5 h-5" /> },
+  { label: 'Score Review', href: '/dashboard/teacher/score-review', icon: <FileText className="w-5 h-5" /> },
   { label: 'View Scores', href: '/dashboard/teacher/scores', icon: <FileText className="w-5 h-5" /> },
   { label: 'Messages', href: '/dashboard/teacher/messaging', icon: <MessageSquare className="w-5 h-5" /> },
   { label: 'Events', href: '/dashboard/teacher/events', icon: <Calendar className="w-5 h-5" /> },

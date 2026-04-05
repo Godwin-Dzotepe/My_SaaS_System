@@ -1,0 +1,6 @@
+from pathlib import Path 
+p = Path(r'app/dashboard/school-admin/teachers/view/[id]/page.tsx') 
+s = p.read_text(encoding='utf-8') 
+s = s.replace('  Phone,\n  School,', '  Phone,\n  Printer,\n  School,') 
+s = s.replace('import { Card, CardContent, CardHeader, CardTitle, CardDescription } from \'@/components/ui/card\';', 'import { Card, CardContent, CardHeader, CardTitle, CardDescription } from \'@/components/ui/card\';\nimport { downloadPdfFromLines } from \'@/lib/client-pdf\';') 
+s = s.replace('  const handleDownloadPdf = () =    window.print();\n  };', '  const handleDownloadPdf = () =    const lines = [\n      \'Teacher Profile Report\',\n      \'\',\n      `Name: ${teacher.name}`,\n      `Role: ${teacher.role.replace(\'_\', \' \')}`,\n      `Email: ${teacher.email || \'Not available\'}`,\n      `Phone: ${teacher.phone || \'Not available\'}`,\n      `School: ${teacher.school?.school_name || \'Not available\'}`,\n      `Joined: ${formatDate(teacher.created_at)}`,\n      `Assigned Classes: ${teacher.classes.length}`,\n      `Subjects: ${teacher.subjects.length}`,\n      `Total Students: ${totalStudents}`,\n      `Attendance Rate: ${attendanceRate}%`,\n      `Generated On: ${new Date().toLocaleString(\'en-US\')}`,\n    ];\n\n    downloadPdfFromLines(`teacher-profile-${teacher.name}`, lines);\n  };\n\n  const handlePrint = () =    window.print();\n  };') 

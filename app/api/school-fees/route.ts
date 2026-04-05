@@ -3,9 +3,52 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { withAuth, validateSchool, authorize } from '@/lib/api-auth';
 
+const DB_FEE_TYPES = ['TUITION', 'LUNCH', 'TRANSPORT', 'CLASS', 'OTHER'] as const;
+const FEE_TYPE_LABEL_PREFIX = '[fee_type:';
+
+function decodeFeeTypeForResponse<T extends { fee_type: string; description: string | null }>(fee: T) {
+  if (fee.fee_type !== 'OTHER' || !fee.description?.startsWith(FEE_TYPE_LABEL_PREFIX)) {
+    return fee;
+  }
+
+  const closingBracketIndex = fee.description.indexOf(']');
+  if (closingBracketIndex < 0) return fee;
+
+  const customType = fee.description.slice(FEE_TYPE_LABEL_PREFIX.length, closingBracketIndex).trim();
+  const description = fee.description.slice(closingBracketIndex + 1).trim();
+  if (!customType) return fee;
+
+  return {
+    ...fee,
+    fee_type: customType,
+    description: description || null,
+  };
+}
+
+function encodeFeeTypeForStorage(feeTypeInput: string, descriptionInput?: string) {
+  const normalized = feeTypeInput.trim();
+  const upper = normalized.toUpperCase();
+  const description = (descriptionInput ?? '').trim();
+
+  if ((DB_FEE_TYPES as readonly string[]).includes(upper)) {
+    return {
+      fee_type: upper,
+      description: description || null,
+    };
+  }
+
+  const safeCustom = normalized.replace(/\]/g, '').slice(0, 80);
+  const storedDescription = `${FEE_TYPE_LABEL_PREFIX}${safeCustom}] ${description}`.trim();
+
+  return {
+    fee_type: 'OTHER',
+    description: storedDescription || null,
+  };
+}
+
 const schoolFeeSchema = z.object({
   class_id: z.string().uuid().optional().or(z.literal('')),
-  fee_type: z.enum(['TUITION', 'LUNCH', 'TRANSPORT', 'CLASS', 'OTHER']),
+  fee_type: z.string().trim().min(1, 'Fee type is required').max(80, 'Fee type is too long'),
   amount: z.number().min(0),
   academic_year: z.string(),
   term: z.string().optional(),
@@ -30,7 +73,7 @@ export const GET = withAuth(async ({ req, session }) => {
       orderBy: [{ fee_type: 'asc' }, { term: 'asc' }]
     });
 
-    return NextResponse.json(fees);
+    return NextResponse.json(fees.map((fee) => decodeFeeTypeForResponse(fee)));
   } catch (error) {
     console.error('Error fetching school fees:', error);
     return NextResponse.json({ error: 'Failed to fetch school fees' }, { status: 500 });
@@ -41,6 +84,10 @@ export const GET = withAuth(async ({ req, session }) => {
 export const POST = withAuth(async ({ req, session }) => {
   try {
     const user = session.user;
+    if (!user.school_id) {
+      return NextResponse.json({ error: 'Your account is not linked to a school.' }, { status: 400 });
+    }
+
     const body = await req.json();
     const validation = schoolFeeSchema.safeParse(body);
 
@@ -49,24 +96,43 @@ export const POST = withAuth(async ({ req, session }) => {
     }
 
     const { class_id, fee_type, amount, academic_year, term, description, due_date } = validation.data;
+    const encoded = encodeFeeTypeForStorage(fee_type, description);
 
     const fee = await prisma.schoolFee.create({
       data: {
-        school_id: user.school_id!,
+        school_id: user.school_id,
         class_id: class_id ? class_id : null,
-        fee_type,
+        fee_type: encoded.fee_type,
         amount,
         academic_year,
         term,
-        description,
+        description: encoded.description,
         due_date: due_date ? new Date(due_date) : null
       }
     });
 
-    return NextResponse.json(fee, { status: 201 });
+    return NextResponse.json(decodeFeeTypeForResponse(fee), { status: 201 });
   } catch (error) {
     console.error('Error creating school fee:', error);
-    return NextResponse.json({ error: 'Failed to create school fee' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+
+    if (
+      message.toLowerCase().includes('fee_type') &&
+      (
+        message.toLowerCase().includes('enum') ||
+        message.toLowerCase().includes('data truncated') ||
+        message.toLowerCase().includes('invalid input value')
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error: 'Database schema is outdated for custom fee types. Run Prisma migration and try again.',
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ error: `Failed to create school fee: ${message}` }, { status: 500 });
   }
 }, { roles: ['school_admin'] });
 
@@ -79,6 +145,10 @@ export async function PUT(req: NextRequest) {
 
     const body = await req.json();
     const { id, fee_type, amount, academic_year, term, description, due_date, is_active } = body;
+    const encoded =
+      typeof fee_type === 'string' && fee_type.trim()
+        ? encodeFeeTypeForStorage(fee_type, typeof description === 'string' ? description : undefined)
+        : null;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -97,17 +167,21 @@ export async function PUT(req: NextRequest) {
     const fee = await prisma.schoolFee.update({
       where: { id },
       data: {
-        ...(fee_type && { fee_type }),
+        ...(encoded && { fee_type: encoded.fee_type }),
         ...(amount !== undefined && { amount }),
         ...(academic_year && { academic_year }),
         ...(term !== undefined && { term }),
-        ...(description !== undefined && { description }),
+        ...(encoded
+          ? { description: encoded.description }
+          : description !== undefined
+            ? { description }
+            : {}),
         ...(due_date !== undefined && { due_date: due_date ? new Date(due_date) : null }),
         ...(is_active !== undefined && { is_active })
       }
     });
 
-    return NextResponse.json(fee);
+    return NextResponse.json(decodeFeeTypeForResponse(fee));
   } catch (error) {
     console.error('Error updating school fee:', error);
     return NextResponse.json({ error: 'Failed to update school fee' }, { status: 500 });

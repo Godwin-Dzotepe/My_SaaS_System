@@ -172,9 +172,14 @@ export default function TeacherViewScoresPage() {
                 Review the scores, attitude, and teacher advice already saved for your students.
               </p>
             </div>
-            <Link href="/dashboard/teacher/scoring">
-              <Button>Go to Scoring</Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/dashboard/teacher/scoring">
+                <Button variant="outline">Go to Scoring</Button>
+              </Link>
+              <Link href="/dashboard/teacher/score-review">
+                <Button>Go to Score Review</Button>
+              </Link>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">

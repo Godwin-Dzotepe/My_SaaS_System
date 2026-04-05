@@ -52,6 +52,7 @@ export default function ParentsPage() {
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string | null>>({});
   const [revealTarget, setRevealTarget] = useState<Parent | null>(null);
   const [revealingPassword, setRevealingPassword] = useState(false);
+  const searchTermBeforeReveal = React.useRef('');
 
   const fetchParents = async () => {
     try {
@@ -124,6 +125,12 @@ export default function ParentsPage() {
       setError('This parent account is not linked yet.');
       return;
     }
+    if (!parent.password_generated_at) {
+      setError('No temporary password is currently active for this parent. Click Reset Password to generate a new one.');
+      return;
+    }
+    // Preserve the current search text so opening the reveal modal never alters filtering.
+    searchTermBeforeReveal.current = searchTerm;
     setRevealTarget(parent);
   };
 
@@ -158,6 +165,7 @@ export default function ParentsPage() {
       console.error(revealError);
       setError(revealError instanceof Error ? revealError.message : 'Failed to reveal parent password');
     } finally {
+      setSearchTerm(searchTermBeforeReveal.current);
       setRevealingPassword(false);
     }
   };
@@ -237,6 +245,7 @@ export default function ParentsPage() {
                 className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-4 outline-none transition-all focus:ring-2 focus:ring-blue-500"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                autoComplete="off"
               />
             </div>
             <Button variant="outline" className="gap-2 lg:w-auto" onClick={fetchParents}>
@@ -317,7 +326,7 @@ export default function ParentsPage() {
                             <div className="flex items-center gap-2 font-mono text-gray-800">
                               <KeyRound className="h-4 w-4 text-gray-400" />
                               <span>{parent.parent_id ? (revealedPasswords[parent.parent_id] || '••••••••') : 'Reset password to generate'}</span>
-                              {parent.parent_id ? (
+                              {parent.parent_id && parent.password_generated_at ? (
                                 <button type="button" className="text-blue-600 hover:text-blue-800" onClick={() => handleRevealPassword(parent)}>
                                   <Eye className="h-4 w-4" />
                                 </button>
@@ -416,7 +425,7 @@ export default function ParentsPage() {
                                   <div className="flex items-center gap-2 font-mono text-gray-800">
                                     <KeyRound className="h-4 w-4 text-gray-400" />
                                     <span>{parent.parent_id ? (revealedPasswords[parent.parent_id] || '••••••••') : 'Reset password to generate'}</span>
-                                    {parent.parent_id ? (
+                                    {parent.parent_id && parent.password_generated_at ? (
                                       <button type="button" className="text-blue-600 hover:text-blue-800" onClick={() => handleRevealPassword(parent)}>
                                         <Eye className="h-4 w-4" />
                                       </button>
@@ -486,7 +495,10 @@ export default function ParentsPage() {
       </motion.div>
       <PromptModal
         isOpen={Boolean(revealTarget)}
-        onClose={() => setRevealTarget(null)}
+        onClose={() => {
+          setRevealTarget(null);
+          setSearchTerm(searchTermBeforeReveal.current);
+        }}
         onSubmit={submitRevealPassword}
         title="Verify Admin Password"
         description={revealTarget ? `Enter your admin password to view ${revealTarget.parent_name}'s login password.` : undefined}

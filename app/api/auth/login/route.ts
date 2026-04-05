@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { generateToken } from '@/lib/auth';
 import { findUserWithSchoolBranding } from '@/lib/school-branding';
+import { generateRandomPassword } from '@/lib/password-utils';
 
 /**
  * Input validation schema
@@ -13,6 +14,8 @@ const loginSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),        
   schoolId: z.string().optional(), // Optional schoolId for multi-tenant        
 });
+
+const TEMP_PASSWORD_EXPIRY_HOURS = 5;
 
 async function findLoginUser(where: Record<string, unknown>) {
   try {
@@ -84,7 +87,48 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Verify password
+    // 2. Enforce parent temporary-password expiry (5 hours)
+    if (user.role === 'parent' && user.temporary_password) {
+      // If generation time is missing, treat temporary credentials as invalid.
+      const generatedAtMs = user.password_generated_at
+        ? new Date(user.password_generated_at).getTime()
+        : 0;
+      const expiresAt = generatedAtMs + TEMP_PASSWORD_EXPIRY_HOURS * 60 * 60 * 1000;
+      const isExpired = !generatedAtMs || Date.now() > expiresAt;
+
+      if (isExpired) {
+        // Rotate password and clear temporary credentials so expired temporary logins
+        // cannot be used again until admin explicitly resets.
+        const randomLockPassword = generateRandomPassword();
+        const lockedHashedPassword = await bcrypt.hash(randomLockPassword, 10);
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            password: lockedHashedPassword,
+            temporary_password: null,
+            password_generated_at: null,
+          },
+        });
+
+        return NextResponse.json(
+          {
+            error:
+              'Your temporary password has expired after 5 hours. Please contact your school admin to reset your parent password.',
+          },
+          { status: 401 }
+        );
+      }
+    }
+
+    // 3. Verify password
+    if (typeof user.password !== 'string' || user.password.length === 0) {
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      );
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
@@ -94,7 +138,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Generate JWT token with minimal payload
+    // 4. Generate JWT token with minimal payload
     const token = generateToken({
       userId: user.id,
       email: user.email || '',
@@ -103,7 +147,7 @@ export async function POST(req: Request) {
       phone: user.phone,
     });
 
-    // 4. Remove sensitive data from response
+    // 5. Remove sensitive data from response
     const { password: _, ...userWithoutPassword } = user;
     const schoolData = user.school as { school_name?: string; logo_url?: string | null } | null | undefined;
 
@@ -117,7 +161,7 @@ export async function POST(req: Request) {
       token,
     });
 
-    // 5. Set secure HTTP-only cookie
+    // 6. Set secure HTTP-only cookie
     const isProd = process.env.NODE_ENV === 'production';
     response.cookies.set('token', token, {
       httpOnly: true,
@@ -130,10 +174,24 @@ export async function POST(req: Request) {
     return response;
 
   } catch (error) {
-    console.error('[Login Error]:', error instanceof Error ? error.message : 'Unknown error');                                                                      
-    if (error instanceof Error && error.message.includes('prisma')) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Login Error]:', message);
+
+    if (message.includes('DATABASE_URL protocol')) {
       return NextResponse.json(
-        { error: 'Database error. Please try again later.' },
+        { error: 'Server database is misconfigured. Please use a MySQL/MariaDB DATABASE_URL.' },
+        { status: 500 }
+      );
+    }
+
+    if (
+      message.toLowerCase().includes('prisma') ||
+      message.includes('ECONNREFUSED') ||
+      message.toLowerCase().includes('connect') ||
+      message.toLowerCase().includes('pool timeout')
+    ) {
+      return NextResponse.json(
+        { error: 'Database connection error. Please check your database settings.' },
         { status: 500 }
       );
     }

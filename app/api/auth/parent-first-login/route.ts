@@ -174,31 +174,39 @@ export async function POST(req: Request) {
     });
 
     let rawPassword = user?.temporary_password || '';
+    let shouldSendSms = true;
 
     if (user) {
-      if (!rawPassword) {
-        rawPassword = generateRandomPassword();
-        const hashedPassword = await bcrypt.hash(rawPassword, 12);
+      if (user.role !== 'parent') {
+        return NextResponse.json(
+          { error: 'This phone number is already linked to a non-parent account. Please contact your school admin.' },
+          { status: 409 }
+        );
+      }
 
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            name: user.name || parentContext.parentName,
-            phone: matchedPhone,
-            password: hashedPassword,
-            temporary_password: rawPassword,
-            password_generated_at: new Date(),
-            school_id: studentSchoolId,
-          },
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            role: true,
-            school_id: true,
-            temporary_password: true,
-          },
-        });
+      if (!rawPassword) {
+        // Parent has already changed from temporary password before.
+        // Do not generate/send a new one-time password automatically.
+        shouldSendSms = false;
+
+        if (user.school_id !== studentSchoolId || !user.name || user.name === 'Parent' || user.phone !== matchedPhone) {
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              school_id: studentSchoolId,
+              phone: matchedPhone,
+              name: user.name && user.name !== 'Parent' ? user.name : parentContext.parentName,
+            },
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              role: true,
+              school_id: true,
+              temporary_password: true,
+            },
+          });
+        }
       } else if (user.school_id !== studentSchoolId || !user.name || user.name === 'Parent') {
         user = await prisma.user.update({
           where: { id: user.id },
@@ -240,6 +248,16 @@ export async function POST(req: Request) {
           temporary_password: true,
         },
       });
+    }
+
+    if (!shouldSendSms) {
+      return NextResponse.json(
+        {
+          message:
+            'Your one-time login password was already used. Please sign in with your current password or contact your school admin to reset it.',
+        },
+        { status: 409 }
+      );
     }
 
     const smsResult = await sendPasswordSMS({

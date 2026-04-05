@@ -2,23 +2,65 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withAuth } from '@/lib/api-auth';
 
-function getTodayRange() {
+const GHANA_TIMEZONE = 'Africa/Accra';
+const MARK_PRESENT_START_MINUTES = 6 * 60; // 6:00 AM
+const MARK_PRESENT_END_MINUTES = 8 * 60 + 30; // 8:30 AM
+
+function getGhanaNowParts(now: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: GHANA_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value || '0');
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+    minute: get('minute'),
+  };
+}
+
+function getTodayRangeInGhana() {
   const now = new Date();
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
+  const ghana = getGhanaNowParts(now);
+  const ghanaMinutes = ghana.hour * 60 + ghana.minute;
 
-  const endOfDay = new Date(now);
-  endOfDay.setHours(23, 59, 59, 999);
+  const startOfDay = new Date(Date.UTC(ghana.year, ghana.month - 1, ghana.day, 0, 0, 0, 0));
+  const endOfDay = new Date(Date.UTC(ghana.year, ghana.month - 1, ghana.day, 23, 59, 59, 999));
 
-  return { now, startOfDay, endOfDay };
+  const isWithinMarkWindow =
+    ghanaMinutes >= MARK_PRESENT_START_MINUTES && ghanaMinutes <= MARK_PRESENT_END_MINUTES;
+  const hasMarkWindowPassed = ghanaMinutes > MARK_PRESENT_END_MINUTES;
+
+  return {
+    now,
+    startOfDay,
+    endOfDay,
+    isWithinMarkWindow,
+    hasMarkWindowPassed,
+    windowLabel: '6:00 AM - 8:30 AM (Ghana time)',
+  };
 }
 
 export const GET = withAuth(
   async ({ session }) => {
     try {
-      const { startOfDay, endOfDay } = getTodayRange();
+      const {
+        startOfDay,
+        endOfDay,
+        isWithinMarkWindow,
+        hasMarkWindowPassed,
+        windowLabel,
+      } = getTodayRangeInGhana();
 
-      const todayRecord = await prisma.teacherAttendance.findFirst({
+      let todayRecord = await prisma.teacherAttendance.findFirst({
         where: {
           teacher_id: session.user.id,
           school_id: session.user.school_id || undefined,
@@ -31,6 +73,27 @@ export const GET = withAuth(
           date: 'desc',
         },
       });
+
+      // Auto-mark absent after the mark-present window if no attendance has been recorded today.
+      if (!todayRecord && hasMarkWindowPassed && session.user.school_id) {
+        todayRecord = await prisma.teacherAttendance.upsert({
+          where: {
+            teacher_id_date: {
+              teacher_id: session.user.id,
+              date: startOfDay,
+            },
+          },
+          update: {
+            status: 'absent',
+          },
+          create: {
+            teacher_id: session.user.id,
+            school_id: session.user.school_id,
+            date: startOfDay,
+            status: 'absent',
+          },
+        });
+      }
 
       const recentRecords = await prisma.teacherAttendance.findMany({
         where: {
@@ -47,6 +110,9 @@ export const GET = withAuth(
         success: true,
         isMarkedToday: Boolean(todayRecord),
         status: todayRecord?.status || null,
+        canMarkPresent: !todayRecord && isWithinMarkWindow,
+        markWindow: windowLabel,
+        autoMarkedAbsent: todayRecord?.status === 'absent' && hasMarkWindowPassed,
         record: todayRecord,
         records: recentRecords,
       });
@@ -65,19 +131,41 @@ export const POST = withAuth(
         return NextResponse.json({ error: 'Teacher is not associated with a school.' }, { status: 400 });
       }
 
-      const { now, startOfDay } = getTodayRange();
+      const {
+        now,
+        startOfDay,
+        endOfDay,
+        isWithinMarkWindow,
+        windowLabel,
+      } = getTodayRangeInGhana();
 
-      const record = await prisma.teacherAttendance.upsert({
+      if (!isWithinMarkWindow) {
+        return NextResponse.json(
+          { error: `You can only mark present between ${windowLabel}.` },
+          { status: 403 }
+        );
+      }
+
+      const existingToday = await prisma.teacherAttendance.findFirst({
         where: {
-          teacher_id_date: {
-            teacher_id: session.user.id,
-            date: startOfDay,
+          teacher_id: session.user.id,
+          school_id: session.user.school_id,
+          date: {
+            gte: startOfDay,
+            lte: endOfDay,
           },
         },
-        update: {
-          status: 'present',
-        },
-        create: {
+      });
+
+      if (existingToday) {
+        return NextResponse.json(
+          { error: `Attendance already marked as ${existingToday.status} for today.` },
+          { status: 400 }
+        );
+      }
+
+      const record = await prisma.teacherAttendance.create({
+        data: {
           teacher_id: session.user.id,
           school_id: session.user.school_id,
           date: startOfDay,
@@ -90,6 +178,8 @@ export const POST = withAuth(
         message: 'Attendance marked successfully.',
         isMarkedToday: true,
         status: record.status,
+        canMarkPresent: false,
+        markWindow: windowLabel,
         record: {
           ...record,
           marked_at: now.toISOString(),

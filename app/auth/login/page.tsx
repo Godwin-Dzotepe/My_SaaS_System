@@ -45,9 +45,29 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState('');
+  const [systemError, setSystemError] = useState('');
   const [helperMessage, setHelperMessage] = useState('');
   const [firstTimeLoading, setFirstTimeLoading] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
+
+  useEffect(() => {
+    const checkDatabaseHealth = async () => {
+      try {
+        const res = await fetch('/api/health/db', { cache: 'no-store' });
+        if (res.ok) {
+          setSystemError('');
+          return;
+        }
+
+        const data = await res.json().catch(() => null);
+        setSystemError(data?.details || data?.error || 'Database is unavailable right now.');
+      } catch {
+        setSystemError('Database health check failed. Please try again later.');
+      }
+    };
+
+    checkDatabaseHealth();
+  }, []);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -127,7 +147,11 @@ export default function LoginPage() {
 
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(data?.error || 'Failed to send first-time password.');
+        if (res.status === 409 && data?.message) {
+          setHelperMessage(data.message);
+          return;
+        }
+        throw new Error(data?.error || data?.message || 'Failed to send first-time password.');
       }
 
       setHelperMessage(data?.message || 'Password sent successfully.');
@@ -207,6 +231,17 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+              {systemError ? (
+                <motion.div
+                  className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <strong className="block text-amber-900">System unavailable</strong>
+                  <span className="mt-1 block">{systemError}</span>
+                </motion.div>
+              ) : null}
+
               {error ? (
                 <motion.div
                   className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
@@ -273,7 +308,7 @@ export default function LoginPage() {
               <div className="space-y-3 pt-2">
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || Boolean(systemError)}
                   className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#3f7afc] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#2d6ae0] disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {loading ? (
@@ -289,7 +324,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={handleParentFirstTimePassword}
-                  disabled={firstTimeLoading}
+                  disabled={firstTimeLoading || Boolean(systemError)}
                   className="w-full rounded-2xl border border-[#d8deea] bg-white px-4 py-3.5 text-sm font-semibold text-[#646464] transition hover:border-[#3f7afc]/30 hover:bg-[#f8f9fb] hover:text-[#3f7afc] disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {firstTimeLoading ? 'Sending parent password...' : 'Parent First-Time Password'}

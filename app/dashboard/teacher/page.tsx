@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { CalendarWidget } from '@/components/dashboard/calendar-widget';        
 import { TEACHER_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Sidebar } from '@/components/dashboard/sidebar';
+import { DashboardAlertBanner, useDashboardAlertBanner } from '@/components/dashboard/dashboard-alert-banner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DashboardCard } from '@/components/dashboard/dashboard-card';
@@ -54,6 +55,10 @@ export default function TeacherDashboard() {
   // Teacher Attendance State
   const [attendanceMarked, setAttendanceMarked] = useState(false);
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
+  const [canMarkAttendance, setCanMarkAttendance] = useState(true);
+  const [attendanceStatus, setAttendanceStatus] = useState<'present' | 'absent' | null>(null);
+  const [attendanceWindowLabel, setAttendanceWindowLabel] = useState('6:00 AM - 8:30 AM (Ghana time)');
+  const { banner, dismissBanner } = useDashboardAlertBanner('teacher');
 
   useEffect(() => {
     async function fetchData() {
@@ -79,6 +84,11 @@ export default function TeacherDashboard() {
         if (attResp.ok) {
           const attData = await attResp.json();
           setAttendanceMarked(attData.isMarkedToday);
+          setAttendanceStatus(attData.status || null);
+          setCanMarkAttendance(Boolean(attData.canMarkPresent));
+          if (attData.markWindow) {
+            setAttendanceWindowLabel(attData.markWindow);
+          }
         }
       } catch (err: any) {
         setError(err.message);
@@ -100,6 +110,8 @@ export default function TeacherDashboard() {
       if (!res.ok) throw new Error(resData.error || "Failed to mark attendance");
       
       setAttendanceMarked(true);
+      setAttendanceStatus('present');
+      setCanMarkAttendance(false);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -110,6 +122,7 @@ export default function TeacherDashboard() {
   return (
     <div className="flex min-h-screen bg-[#f0f1f3]">
       <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName="Teacher" />
+      <DashboardAlertBanner banner={banner} onClose={dismissBanner} />
       <motion.div
         className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6"
         initial="hidden"
@@ -134,7 +147,7 @@ export default function TeacherDashboard() {
               >
                 <Button 
                   onClick={handleMarkAttendance}
-                  disabled={attendanceMarked || isMarkingAttendance}
+                  disabled={attendanceMarked || isMarkingAttendance || !canMarkAttendance}
                   className={'relative overflow-hidden shadow-lg transition-all duration-300 px-6 py-6 rounded-xl font-semibold text-lg flex items-center gap-3 ' + (attendanceMarked ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white cursor-not-allowed opacity-90' : 'bg-gradient-to-r from-blue-600 to-[#3f7afc] hover:from-blue-700 hover:to-blue-600 text-white hover:shadow-blue-500/25')}
                 >
                     {isMarkingAttendance ? (
@@ -149,8 +162,13 @@ export default function TeacherDashboard() {
                           className="flex items-center gap-2"
                         >
                             <UserCheck className="w-6 h-6" />
-                            Attendance Marked
+                            {attendanceStatus === 'absent' ? 'Marked Absent' : 'Attendance Marked'}
                         </motion.div>
+                    ) : !canMarkAttendance ? (
+                        <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-6 h-6" />
+                            Mark Present Closed
+                        </div>
                     ) : (
                         <div className="flex items-center gap-2">
                             <CheckCircle2 className="w-6 h-6" />
@@ -162,6 +180,11 @@ export default function TeacherDashboard() {
             )}
           </div>
         </motion.div>
+        {!loading && !attendanceMarked && !canMarkAttendance ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Teacher attendance can only be marked present between {attendanceWindowLabel}.
+          </div>
+        ) : null}
 
         {error && (
             <div className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg relative shadow-sm">

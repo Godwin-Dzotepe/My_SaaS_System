@@ -40,7 +40,7 @@ interface AcademicPeriod {
 const emptyFeeForm = {
   id: '',
   class_id: '',
-  fee_type: 'TUITION',
+  fee_type: '',
   amount: '',
   academic_year: '',
   term: 'Term 1',
@@ -296,17 +296,13 @@ export default function FeesConfigPage() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-sm font-medium">Fee Type</label>
-                      <select
+                      <Input
+                        required
                         className="w-full rounded-lg border p-2 bg-white"
                         value={formData.fee_type}
                         onChange={(e) => setFormData({ ...formData, fee_type: e.target.value })}
-                      >
-                        <option value="TUITION">Tuition</option>
-                        <option value="LUNCH">Lunch</option>
-                        <option value="TRANSPORT">Transport</option>
-                        <option value="CLASS">Class Supplies</option>
-                        <option value="OTHER">Other</option>
-                      </select>
+                        placeholder="e.g. Tuition, ICT Fee, Books, Exam Fee"
+                      />
                     </div>
                     <div>
                       <label className="mb-1 block text-sm font-medium">Amount (GHS)</label>

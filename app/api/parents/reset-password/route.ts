@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authorize, validateSchool } from '@/lib/api-auth';
 import { resetParentTemporaryPassword } from '@/lib/parent-account';
+import type { Role } from '@prisma/client';
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,10 +33,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
+    const adminUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        name: true,
+      },
+    });
+
     const result = await resetParentTemporaryPassword(
       parent.id,
       parent.school?.school_name || 'School',
-      parent.school?.sms_username || null
+      {
+        id: user.id,
+        role: user.role as Role,
+        name: adminUser?.name?.trim() || 'School Admin',
+      }
     );
 
     return NextResponse.json({

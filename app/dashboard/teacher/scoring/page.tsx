@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -42,8 +43,6 @@ interface Student {
 interface ScoreInput {
   classScore: number | '';
   examScore: number | '';
-  behavior: string;
-  teacherAdvice: string;
 }
 
 export default function TeacherScoringPage() {
@@ -150,11 +149,10 @@ export default function TeacherScoringPage() {
 
   const handleScoreChange = (
     studentId: string,
-    field: 'classScore' | 'examScore' | 'behavior' | 'teacherAdvice',
+    field: 'classScore' | 'examScore',
     value: string
   ) => {
-    const isScoreField = field === 'classScore' || field === 'examScore';
-    const nextValue = isScoreField ? (value === '' ? '' : Number(value)) : value;
+    const nextValue = value === '' ? '' : Number(value);
     setScores(prev => ({
       ...prev,
       [studentId]: {
@@ -189,9 +187,7 @@ export default function TeacherScoringPage() {
     const scoreRequests = Object.entries(scores).map(([student_id, score]) => {
       const hasClassScore = !(score.classScore === '' || score.classScore === null || score.classScore === undefined);
       const hasExamScore = !(score.examScore === '' || score.examScore === null || score.examScore === undefined);
-      const hasBehavior = Boolean(score.behavior?.trim());
-      const hasTeacherAdvice = Boolean(score.teacherAdvice?.trim());
-      if (!hasClassScore && !hasExamScore && !hasBehavior && !hasTeacherAdvice) return null;
+      if (!hasClassScore && !hasExamScore) return null;
 
       const studentName = students.find((student) => student.id === student_id)?.name || student_id;
 
@@ -205,8 +201,6 @@ export default function TeacherScoringPage() {
           term: selectedTerm,
           classScore: score.classScore === '' ? null : score.classScore,
           examScore: score.examScore === '' ? null : score.examScore,
-          behavior: score.behavior?.trim() || null,
-          teacherAdvice: score.teacherAdvice?.trim() || null,
         }),
       });
       return { studentId: student_id, studentName, request };
@@ -291,7 +285,7 @@ export default function TeacherScoringPage() {
       <Card>
         <CardHeader className="space-y-2">
           <CardTitle>Enter Student Scores</CardTitle>
-          <p className="text-sm text-gray-500">Choose a class, subject, and term, then enter each student&apos;s scores, behavior, and teacher advice one by one.</p>
+          <p className="text-sm text-gray-500">Choose a class, subject, and term, then enter each student&apos;s class and exam scores.</p>
         </CardHeader>
         <CardContent className="space-y-6 px-4 pb-4 sm:px-6 sm:pb-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -353,8 +347,6 @@ export default function TeacherScoringPage() {
                       <TableHead className="w-32">Class Score</TableHead>
                       <TableHead className="w-32">Exam Score</TableHead>
                       <TableHead className="w-24">Total</TableHead>
-                      <TableHead>Behavior</TableHead>
-                      <TableHead>Teacher Advice</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -382,24 +374,6 @@ export default function TeacherScoringPage() {
                         </TableCell>
                         <TableCell className="font-semibold text-blue-700">
                           {getStudentTotal(student.id)}
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="text"
-                            value={scores[student.id]?.behavior ?? ''}
-                            onChange={e => handleScoreChange(student.id, 'behavior', e.target.value)}
-                            placeholder="e.g., Respectful and focused"
-                            disabled={isLoading}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="text"
-                            value={scores[student.id]?.teacherAdvice ?? ''}
-                            onChange={e => handleScoreChange(student.id, 'teacherAdvice', e.target.value)}
-                            placeholder="e.g., Keep practicing at home"
-                            disabled={isLoading}
-                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -439,31 +413,17 @@ export default function TeacherScoringPage() {
                           <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Total</label>
                           <Input type="text" value={getStudentTotal(student.id)} disabled />
                         </div>
-                        <div className="space-y-1 sm:col-span-2">
-                          <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Behavior</label>
-                          <Input
-                            type="text"
-                            value={scores[student.id]?.behavior ?? ''}
-                            onChange={e => handleScoreChange(student.id, 'behavior', e.target.value)}
-                            placeholder="e.g., Respectful and focused"
-                            disabled={isLoading}
-                          />
-                        </div>
-                        <div className="space-y-1 sm:col-span-2">
-                          <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Teacher Advice</label>
-                          <Input
-                            type="text"
-                            value={scores[student.id]?.teacherAdvice ?? ''}
-                            onChange={e => handleScoreChange(student.id, 'teacherAdvice', e.target.value)}
-                            placeholder="e.g., Keep practicing at home"
-                            disabled={isLoading}
-                          />
-                        </div>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
+              <p className="text-sm text-blue-700">
+                Need to add behavior and teacher advice? Use{' '}
+                <Link href="/dashboard/teacher/score-review" className="font-semibold underline">
+                  Score Review
+                </Link>.
+              </p>
               <Button className="w-full sm:w-auto" onClick={handleSaveScores} disabled={isLoading || Object.keys(scores).length === 0}>
                 {isLoading ? 'Saving...' : 'Save All Scores'}
               </Button>

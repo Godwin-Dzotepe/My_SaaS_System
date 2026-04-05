@@ -387,7 +387,7 @@ model SchoolFee {
   school        School    @relation(fields: [school_id], references: [id])
   class_id      String?
   class         Class?    @relation(fields: [class_id], references: [id])
-  fee_type      FeeType // TUITION, LUNCH, TRANSPORT, CLASS, OTHER
+  fee_type      String
   amount        Float
   academic_year String // e.g., "2024-2025"
   term          String? // e.g., "Term 1", "Term 2", "Term 3"
@@ -397,14 +397,6 @@ model SchoolFee {
   created_at    DateTime  @default(now())
   updated_at    DateTime  @updatedAt
   studentFeeBalances StudentFeeBalance[]
-}
-
-enum FeeType {
-  TUITION
-  LUNCH
-  TRANSPORT
-  CLASS
-  OTHER
 }
 
 // Note: StudentFee model removed - using Payment model instead for tracking student fees

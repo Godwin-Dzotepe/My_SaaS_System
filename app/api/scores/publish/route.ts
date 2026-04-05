@@ -4,6 +4,7 @@ import { withAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
 import { sendSMS } from '@/lib/sms-service';
 import { buildResultPublishPayload, RESULT_PUBLISHED_NOTIFICATION } from '@/lib/result-publishing';
+import { sendPushToUsers } from '@/lib/push-service';
 
 const publishSchema = z.object({
   class_id: z.string().min(1, 'Class is required.'),
@@ -234,6 +235,15 @@ export const POST = withAuth(
       }
 
       await createPublishNotifications(schoolId, publisherName, schoolName, notifications);
+
+      await sendPushToUsers(
+        Array.from(new Set(notifications.map((item) => item.user_id))),
+        {
+          title: 'Results Published',
+          body: `${classRoom.class_name} ${term} ${academic_year} results are now available.`,
+          url: '/dashboard/parent/results',
+        }
+      );
 
       await Promise.all(
         [...smsQueue.entries()].map(([phone, message]) =>

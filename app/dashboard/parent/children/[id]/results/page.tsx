@@ -48,13 +48,102 @@ interface ReportResponse {
   scores: ReportScore[];
 }
 
-function escapeHtml(value: string) {
+function normalizePdfText(value: string) {
   return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function escapePdfText(value: string) {
+  return value
+    .replaceAll('\\', '\\\\')
+    .replaceAll('(', '\\(')
+    .replaceAll(')', '\\)');
+}
+
+function wrapPdfLine(line: string, maxChars = 92) {
+  const words = normalizePdfText(line).split(' ');
+  const lines: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    if (!word) continue;
+    if (!current) {
+      current = word;
+      continue;
+    }
+
+    if (`${current} ${word}`.length <= maxChars) {
+      current = `${current} ${word}`;
+      continue;
+    }
+
+    lines.push(current);
+    current = word;
+  }
+
+  if (current) {
+    lines.push(current);
+  }
+
+  return lines.length ? lines : [''];
+}
+
+function buildPdfFromLines(lines: string[]) {
+  const linesPerPage = 48;
+  const pageChunks: string[][] = [];
+  for (let i = 0; i < lines.length; i += linesPerPage) {
+    pageChunks.push(lines.slice(i, i + linesPerPage));
+  }
+  if (pageChunks.length === 0) {
+    pageChunks.push(['No content available.']);
+  }
+
+  const objects: string[] = [];
+  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+
+  const pageObjectNumbers: number[] = [];
+  const pageEntries: string[] = [];
+  let nextObjectNumber = 4;
+
+  for (const chunk of pageChunks) {
+    const pageObjectNumber = nextObjectNumber++;
+    const contentObjectNumber = nextObjectNumber++;
+    pageObjectNumbers.push(pageObjectNumber);
+
+    const contentLines = chunk
+      .map((line) => `(${escapePdfText(line)}) Tj\nT*`)
+      .join('\n');
+    const contentStream = `BT\n/F1 10 Tf\n14 TL\n40 800 Td\n${contentLines}\nET`;
+
+    objects[contentObjectNumber] = `<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream`;
+    pageEntries.push(`${pageObjectNumber} 0 R`);
+    objects[pageObjectNumber] =
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ` +
+      `/Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`;
+  }
+
+  objects[2] = `<< /Type /Pages /Kids [${pageEntries.join(' ')}] /Count ${pageObjectNumbers.length} >>`;
+  objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [0];
+  for (let i = 1; i < objects.length; i++) {
+    offsets[i] = pdf.length;
+    pdf += `${i} 0 obj\n${objects[i]}\nendobj\n`;
+  }
+
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (let i = 1; i < objects.length; i++) {
+    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  }
+
+  pdf += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return new TextEncoder().encode(pdf);
 }
 
 function getGradeTone(grade: string | null) {
@@ -124,100 +213,47 @@ export default function ChildResultsPage() {
 
     setDownloading(true);
     try {
-      const rows = report.scores.map((score) => `
-        <tr>
-          <td>${escapeHtml(score.subject.subject_name)}</td>
-          <td>${score.classScore ?? 'N/A'}</td>
-          <td>${score.examScore ?? 'N/A'}</td>
-          <td>${score.totalScore ?? 'N/A'}</td>
-          <td>${escapeHtml(score.grade ?? 'N/A')}</td>
-          <td>${escapeHtml(score.remark ?? 'N/A')}</td>
-          <td>${escapeHtml(score.behavior ?? 'N/A')}</td>
-          <td>${escapeHtml(score.teacherAdvice ?? 'N/A')}</td>
-        </tr>
-      `).join('');
+      const lines: string[] = [
+        'STUDENT REPORT CARD',
+        '',
+        `Name: ${report.child.name || 'N/A'}`,
+        `School: ${report.child.school?.school_name || 'N/A'}`,
+        `Class: ${report.child.class?.class_name || 'N/A'}`,
+        `Student Number: ${report.child.student_number || 'N/A'}`,
+        `Period: ${report.selectedPeriod.term} - ${report.selectedPeriod.academic_year}`,
+        `Average Score: ${report.summary.averageScore ?? 'N/A'}`,
+        `Position: ${report.summary.position ?? 'N/A'}`,
+        '',
+        'Subject Breakdown',
+        'Subject | Class Score | Exam Score | Total | Grade | Remark | Behavior | Teacher Advice',
+      ];
 
-      const printFrame = document.createElement('iframe');
-      printFrame.style.position = 'fixed';
-      printFrame.style.right = '0';
-      printFrame.style.bottom = '0';
-      printFrame.style.width = '0';
-      printFrame.style.height = '0';
-      printFrame.style.border = '0';
-      document.body.appendChild(printFrame);
-
-      const frameDocument = printFrame.contentWindow?.document;
-      if (!frameDocument || !printFrame.contentWindow) {
-        document.body.removeChild(printFrame);
-        throw new Error('Unable to prepare the report for printing.');
+      if (report.scores.length === 0) {
+        lines.push('No results available for this period.');
+      } else {
+        report.scores.forEach((score, index) => {
+          const rawLine =
+            `${index + 1}. ${score.subject.subject_name} | ${score.classScore ?? 'N/A'} | ${score.examScore ?? 'N/A'} | ` +
+            `${score.totalScore ?? 'N/A'} | ${score.grade ?? 'N/A'} | ${score.remark ?? 'N/A'} | ` +
+            `${score.behavior ?? 'N/A'} | ${score.teacherAdvice ?? 'N/A'}`;
+          lines.push(...wrapPdfLine(rawLine));
+        });
       }
 
-      frameDocument.open();
-      frameDocument.write(`
-        <html>
-          <head>
-            <title>${escapeHtml(report.child.name)} Report</title>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 32px; color: #111827; }
-              h1, h2, p { margin: 0 0 12px; }
-              .meta { margin-bottom: 24px; color: #4b5563; }
-              .summary { display: flex; gap: 24px; margin: 24px 0; }
-              .summary-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; min-width: 180px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-              th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }
-              th { background: #f3f4f6; }
-            </style>
-          </head>
-          <body>
-            <h1>Student Report Card</h1>
-            <div class="meta">
-              <p><strong>Name:</strong> ${escapeHtml(report.child.name)}</p>
-              <p><strong>School:</strong> ${escapeHtml(report.child.school?.school_name ?? 'N/A')}</p>
-              <p><strong>Class:</strong> ${escapeHtml(report.child.class?.class_name ?? 'N/A')}</p>
-              <p><strong>Student Number:</strong> ${escapeHtml(report.child.student_number ?? 'N/A')}</p>
-              <p><strong>Period:</strong> ${escapeHtml(report.selectedPeriod.term)} - ${escapeHtml(report.selectedPeriod.academic_year)}</p>
-            </div>
-            <div class="summary">
-              <div class="summary-card">
-                <p><strong>Average Score</strong></p>
-                <h2>${report.summary.averageScore ?? 'N/A'}</h2>
-              </div>
-              <div class="summary-card">
-                <p><strong>Position</strong></p>
-                <h2>${report.summary.position ?? 'N/A'}</h2>
-              </div>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Subject</th>
-                  <th>Class Score</th>
-                  <th>Exam Score</th>
-                  <th>Total</th>
-                  <th>Grade</th>
-                  <th>Remark</th>
-                  <th>Behavior</th>
-                  <th>Teacher Advice</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rows || '<tr><td colspan="8">No results available for this period.</td></tr>'}
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `);
-      frameDocument.close();
-
-      printFrame.onload = () => {
-        printFrame.contentWindow?.focus();
-        printFrame.contentWindow?.print();
-        window.setTimeout(() => {
-          if (document.body.contains(printFrame)) {
-            document.body.removeChild(printFrame);
-          }
-        }, 1000);
-      };
+      const pdfBytes = buildPdfFromLines(lines);
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${normalizePdfText(report.child.name || 'student-report')
+        .replaceAll(' ', '-')
+        .toLowerCase()}-${normalizePdfText(report.selectedPeriod.term || 'term')
+        .replaceAll(' ', '-')
+        .toLowerCase()}-${normalizePdfText(report.selectedPeriod.academic_year || 'report')}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
     } catch (downloadError) {
       console.error(downloadError);
       setDownloadErrorMessage(downloadError instanceof Error ? downloadError.message : 'Failed to prepare the PDF download.');

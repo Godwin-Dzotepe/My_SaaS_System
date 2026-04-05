@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import { prisma } from '@/lib/prisma';
 import { generateRandomPassword } from '@/lib/password-utils';
 import { sendPasswordSMS } from '@/lib/sms-service';
+import type { Role } from '@prisma/client';
 
 interface EnsureParentAccountParams {
   name?: string;
@@ -129,7 +130,17 @@ export async function ensureParentAccount({
   };
 }
 
-export async function resetParentTemporaryPassword(parentId: string, schoolName: string, schoolSmsUsername?: string | null) {
+interface ParentPasswordResetActor {
+  id: string;
+  role: Role;
+  name: string;
+}
+
+export async function resetParentTemporaryPassword(
+  parentId: string,
+  schoolName: string,
+  resetBy: ParentPasswordResetActor
+) {
   const parent = await prisma.user.findUnique({
     where: { id: parentId },
     select: {
@@ -154,39 +165,55 @@ export async function resetParentTemporaryPassword(parentId: string, schoolName:
   const generatedPassword = generateRandomPassword();
   const hashedPassword = await bcrypt.hash(generatedPassword, 10);
 
-  const updatedParent = await prisma.user.update({
-    where: { id: parent.id },
-    data: {
-      password: hashedPassword,
-      temporary_password: generatedPassword,
-      password_generated_at: new Date(),
-    },
-    select: {
-      id: true,
-      name: true,
-      phone: true,
-      school_id: true,
-      temporary_password: true,
-    },
-  });
+  const childName = parent.students[0]?.name || 'your child';
+  const messageTitle = 'Parent Password Reset';
+  const messageBody = `Your password was reset by ${resetBy.name}. Temporary password: ${generatedPassword}. This temporary password expires in 5 hours. Child: ${childName}.`;
 
-  try {
-    const smsResult = await sendPasswordSMS({
-      phone: updatedParent.phone,
-      password: generatedPassword,
-      schoolName,
-      smsUsername: schoolSmsUsername,
-      parentName: updatedParent.name,
-      childName: parent.students[0]?.name,
+  const updatedParent = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { id: parent.id },
+      data: {
+        password: hashedPassword,
+        temporary_password: generatedPassword,
+        password_generated_at: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        school_id: true,
+        temporary_password: true,
+      },
     });
 
-    if (!smsResult.success) {
-      throw new Error(smsResult.error || 'Failed to send parent password SMS');
-    }
-  } catch (smsError) {
-    console.warn('[ParentAccount] Reset password SMS failed:', smsError);
-    throw smsError;
-  }
+    const appMessage = await tx.appMessage.create({
+      data: {
+        school_id: updated.school_id,
+        sender_id: resetBy.id,
+        recipient_id: updated.id,
+        sender_role: resetBy.role,
+        recipient_role: 'parent',
+        title: messageTitle,
+        body: messageBody,
+        school_name: schoolName,
+      },
+    });
+
+    await tx.appNotification.create({
+      data: {
+        user_id: updated.id,
+        school_id: updated.school_id,
+        message_id: appMessage.id,
+        title: messageTitle,
+        body: messageBody,
+        source_role: resetBy.role,
+        source_name: resetBy.name,
+        school_name: schoolName,
+      },
+    });
+
+    return updated;
+  });
 
   return {
     parent: updatedParent,

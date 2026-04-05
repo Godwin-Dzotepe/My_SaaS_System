@@ -1,0 +1,15 @@
+from pathlib import Path 
+p = Path(r'app/api/parents/reveal-password/route.ts') 
+lines = [] 
+lines.append('import { NextRequest, NextResponse } from ''next/server'';') 
+lines.append('import bcrypt from ''bcryptjs'';') 
+lines.append('import { prisma } from ''@/lib/prisma'';') 
+lines.append('import { authorize, validateSchool } from ''@/lib/api-auth'';') 
+lines.append('') 
+lines.append('export async function POST(req: NextRequest) {') 
+lines.append('  try {') 
+lines.append('    const auth = await authorize(req, [''school_admin'', ''super_admin'']);') 
+lines.append('    if (auth instanceof NextResponse) return auth;') 
+lines.append('    const { user } = auth;') 
+lines.append('') 
+lines.append('    const { parentId, adminPassword } = await req.json();') 
