@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withAuth } from '@/lib/api-auth';
 import { mergeAcademicPeriods } from '@/lib/academic-periods';
-import { hasPublishedResult, parseResultPublishPayload, RESULT_PUBLISHED_NOTIFICATION } from '@/lib/result-publishing';
+import { parseResultPublishPayload, RESULT_PUBLISHED_NOTIFICATION } from '@/lib/result-publishing';
 
 export const GET = withAuth(
   async ({ session, params, req }) => {
@@ -105,7 +105,7 @@ export const GET = withAuth(
       const selectedAcademicYear = searchParams.get('academic_year') || availablePeriods[0]?.academic_year || '';
       const selectedTerm = searchParams.get('term') || availablePeriods[0]?.term || '';
 
-      const scores = selectedAcademicYear && selectedTerm && hasPublishedResult(releaseNotifications, childId, selectedAcademicYear, selectedTerm)
+      const scores = selectedAcademicYear && selectedTerm
         ? await prisma.score.findMany({
             where: {
               student_id: childId,
