@@ -37,7 +37,7 @@ export default function StudentProfilePage({ params }: { params: Promise<{ id: s
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName="Teacher" />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         <h1 className="text-2xl font-bold mb-6">Student Profile</h1>
         
         {loading ? (

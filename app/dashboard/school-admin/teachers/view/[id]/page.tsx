@@ -136,7 +136,7 @@ export default function TeacherDetailPage() {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName="Admin User" />
-        <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+        <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
           <Card className="border-red-200 bg-red-50">
             <CardContent className="p-6">
               <p className="font-semibold text-red-800">{error || 'Teacher record not found.'}</p>
@@ -184,7 +184,7 @@ export default function TeacherDetailPage() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.25 }}
       >
-        <div ref={pdfContentRef} className="teacher-pdf-content space-y-6 p-4 lg:p-8">
+        <div ref={pdfContentRef} className="teacher-pdf-content space-y-6 p-4 md:p-6 lg:p-8">
           <div data-pdf-ignore="true" className="teacher-pdf-toolbar flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard/school-admin/teachers">

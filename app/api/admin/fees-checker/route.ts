@@ -114,6 +114,7 @@ export async function GET(req: NextRequest) {
     });
 
     const rows = balances
+      .filter((balance: BalanceRow) => balance.schoolFee !== null)
       .map((balance: BalanceRow): FeeCheckerRow => {
         const totalAmount = balance.schoolFee.amount;
         const amountPaid = Number(balance.amount_paid || 0);

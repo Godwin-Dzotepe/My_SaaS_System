@@ -143,7 +143,7 @@ export default function SchoolAdminDashboard() {
         animate="visible"
         variants={containerVariants}
       >
-        <div className="p-4 lg:p-8 space-y-6">
+        <div className="p-4 md:p-6 lg:p-8 space-y-6">
           {/* Header */}
           <motion.div 
             variants={itemVariants}
@@ -252,7 +252,7 @@ export default function SchoolAdminDashboard() {
           </motion.div>
 
           {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <motion.div variants={itemVariants}>
               <Card className="border-none shadow-sm bg-white overflow-hidden">
                 <CardHeader className="border-b border-gray-50 pb-4">
@@ -306,7 +306,7 @@ export default function SchoolAdminDashboard() {
           </div>
 
           {/* Table Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <motion.div variants={itemVariants} className="lg:col-span-2">
               <Card className="border-none shadow-sm bg-white overflow-hidden">
                 <CardHeader className="flex flex-row items-center justify-between border-b border-gray-50 pb-4">

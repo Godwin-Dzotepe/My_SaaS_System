@@ -123,7 +123,7 @@ export default function FinanceOverviewPage() {
       <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName="Admin User" />
 
       <motion.div className="flex-1 lg:ml-64" initial="hidden" animate="visible" variants={containerVariants}>
-        <div className="space-y-6 p-4 lg:p-8">
+        <div className="space-y-6 p-4 md:p-6 lg:p-8">
           <motion.div variants={itemVariants} className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard/school-admin">
@@ -210,7 +210,7 @@ export default function FinanceOverviewPage() {
                 </Card>
               </motion.div>
 
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <motion.div variants={itemVariants} className="lg:col-span-2">
                   <Card>
                     <CardHeader>

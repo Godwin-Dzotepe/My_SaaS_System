@@ -101,7 +101,7 @@ export default function SchoolDetailPage() {
       />
 
       <motion.div
-        className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6"
+        className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8 space-y-6"
         initial="hidden"
         animate="visible"
         variants={containerVariants}

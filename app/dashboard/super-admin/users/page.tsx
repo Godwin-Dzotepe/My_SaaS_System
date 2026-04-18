@@ -93,7 +93,7 @@ export default function UserManagement() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={SUPER_ADMIN_SIDEBAR_ITEMS} userRole="super-admin" userName="System Administrator" />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">User Management</h1>

@@ -139,7 +139,7 @@ export default function EditSchoolPage() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
-        <div className="space-y-6 p-4 lg:p-8">
+        <div className="space-y-6 p-4 md:p-6 lg:p-8">
           <div className="flex items-center gap-4">
             <Link href="/dashboard/super-admin/schools">
               <Button variant="ghost" size="sm" className="gap-2">

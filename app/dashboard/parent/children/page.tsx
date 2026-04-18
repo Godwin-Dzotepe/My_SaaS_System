@@ -43,7 +43,7 @@ export default function ParentChildrenPage() {
     <div className="flex min-h-screen bg-[#f0f1f3]">
       <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName={userName} />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8 space-y-6">
         <header>
           <h1 className="text-2xl font-bold text-[#212529]">My Children</h1>
           <p className="text-[#646464] text-sm">View and manage your children&apos;s school information.</p>

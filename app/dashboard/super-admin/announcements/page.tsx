@@ -82,7 +82,7 @@ export default function GlobalAnnouncements() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={SUPER_ADMIN_SIDEBAR_ITEMS} userRole="super-admin" userName="System Administrator" />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Global Announcements</h1>
           <p className="text-gray-600">Broadcast messages to all schools and users</p>

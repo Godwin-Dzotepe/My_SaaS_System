@@ -69,7 +69,7 @@ export default function SecretaryTeacherAttendancePage() {
     <div className="flex min-h-screen bg-[#f0f1f3]">
       <Sidebar items={SECRETARY_SIDEBAR_ITEMS} userRole="secretary" userName="Secretary" />
       <motion.div
-        className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6"
+        className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8 space-y-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >

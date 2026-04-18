@@ -177,7 +177,7 @@ export default function EditStudentPage() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName="Admin" />
 
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         {/* Header */}
         <div className="mb-6">
           <Link href="/dashboard/school-admin/students" className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 mb-3">

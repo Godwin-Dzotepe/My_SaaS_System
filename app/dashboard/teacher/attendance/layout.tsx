@@ -10,7 +10,7 @@ export default function AttendanceLayout({
   return (
     <div className="flex min-h-screen bg-[#f0f1f3]">
       <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName="Teacher" />
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8 space-y-6">
         {children}
       </div>
     </div>

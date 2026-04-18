@@ -52,6 +52,7 @@ export default function TimetablePage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState<ModalState>({ open: false, day: 1, period: 1, existing: null });
+  const [mobileDay, setMobileDay] = useState(1);
 
   // form state
   const [formSubject, setFormSubject] = useState('');
@@ -146,7 +147,7 @@ export default function TimetablePage() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName="Admin" />
 
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-blue-600" /> Class Timetable
@@ -155,11 +156,11 @@ export default function TimetablePage() {
         </div>
 
         {/* Class selector */}
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-6 flex flex-wrap items-center gap-3">
           <select
             value={selectedClass}
             onChange={e => setSelectedClass(e.target.value)}
-            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[200px]"
+            className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white sm:w-auto"
           >
             <option value="">Select a class...</option>
             {classes.map(c => <option key={c.id} value={c.id}>{c.class_name}</option>)}
@@ -173,55 +174,95 @@ export default function TimetablePage() {
             <p className="font-medium">Select a class to view or edit its timetable</p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <table className="w-full min-w-[700px] text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase w-20">Period</th>
-                  {DAYS.map(d => (
-                    <th key={d} className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase">{d}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {PERIODS.map(period => (
-                  <tr key={period} className="border-b border-gray-50 last:border-0">
-                    <td className="px-4 py-2 text-xs font-bold text-gray-400">
-                      P{period}
-                      <div className="font-normal text-gray-300">{DEFAULT_TIMES[period]?.start}</div>
-                    </td>
-                    {[1,2,3,4,5].map(day => {
-                      const entry = entryAt(day, period);
-                      return (
-                        <td key={day} className="px-2 py-2">
-                          <button
-                            onClick={() => openModal(day, period)}
-                            className={`w-full min-h-[52px] rounded-xl border px-2 py-1.5 text-left text-xs transition group ${
-                              entry
-                                ? 'bg-blue-50 border-blue-200 hover:bg-blue-100'
-                                : 'bg-gray-50 border-dashed border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
-                            }`}
-                          >
-                            {entry ? (
-                              <>
-                                <p className="font-semibold text-blue-700 truncate">{entry.subject.subject_name}</p>
-                                {entry.teacher && <p className="text-gray-500 truncate">{entry.teacher.name}</p>}
-                                {entry.room && <p className="text-gray-400">{entry.room}</p>}
-                              </>
-                            ) : (
-                              <span className="text-gray-300 group-hover:text-blue-400 flex items-center gap-1">
-                                <Plus className="w-3 h-3" /> Add
-                              </span>
-                            )}
-                          </button>
-                        </td>
-                      );
-                    })}
-                  </tr>
+          <>
+            {/* Mobile: day-by-day card view */}
+            <div className="md:hidden space-y-4">
+              <div className="flex gap-1 overflow-x-auto bg-white rounded-2xl border border-gray-200 shadow-sm p-1.5">
+                {DAYS.map((d, i) => (
+                  <button key={d} onClick={() => setMobileDay(i + 1)}
+                    className={`shrink-0 flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition ${mobileDay === i + 1 ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+                    {d.slice(0, 3)}
+                  </button>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+              <div className="space-y-2">
+                {PERIODS.map(period => {
+                  const entry = entryAt(mobileDay, period);
+                  return (
+                    <button key={period} onClick={() => openModal(mobileDay, period)}
+                      className={`w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${entry ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200 border-dashed hover:border-blue-300'}`}>
+                      <div className="shrink-0 w-10 text-xs font-bold text-gray-400">
+                        <div>P{period}</div>
+                        <div className="font-normal text-gray-300">{DEFAULT_TIMES[period]?.start}</div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {entry ? (
+                          <>
+                            <p className="font-semibold text-blue-700 text-sm truncate">{entry.subject.subject_name}</p>
+                            {entry.teacher && <p className="text-xs text-gray-500 truncate">{entry.teacher.name}</p>}
+                            {entry.room && <p className="text-xs text-gray-400">{entry.room}</p>}
+                          </>
+                        ) : (
+                          <span className="text-gray-300 flex items-center gap-1 text-sm"><Plus className="w-3 h-3" /> Add period</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Desktop: full table */}
+            <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <table className="w-full min-w-[700px] text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase w-20">Period</th>
+                    {DAYS.map(d => (
+                      <th key={d} className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase">{d}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {PERIODS.map(period => (
+                    <tr key={period} className="border-b border-gray-50 last:border-0">
+                      <td className="px-4 py-2 text-xs font-bold text-gray-400">
+                        P{period}
+                        <div className="font-normal text-gray-300">{DEFAULT_TIMES[period]?.start}</div>
+                      </td>
+                      {[1,2,3,4,5].map(day => {
+                        const entry = entryAt(day, period);
+                        return (
+                          <td key={day} className="px-2 py-2">
+                            <button
+                              onClick={() => openModal(day, period)}
+                              className={`w-full min-h-[52px] rounded-xl border px-2 py-1.5 text-left text-xs transition group ${
+                                entry
+                                  ? 'bg-blue-50 border-blue-200 hover:bg-blue-100'
+                                  : 'bg-gray-50 border-dashed border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
+                              }`}
+                            >
+                              {entry ? (
+                                <>
+                                  <p className="font-semibold text-blue-700 truncate">{entry.subject.subject_name}</p>
+                                  {entry.teacher && <p className="text-gray-500 truncate">{entry.teacher.name}</p>}
+                                  {entry.room && <p className="text-gray-400">{entry.room}</p>}
+                                </>
+                              ) : (
+                                <span className="text-gray-300 group-hover:text-blue-400 flex items-center gap-1">
+                                  <Plus className="w-3 h-3" /> Add
+                                </span>
+                              )}
+                            </button>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

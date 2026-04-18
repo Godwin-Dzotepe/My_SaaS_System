@@ -97,7 +97,7 @@ export default function AttendancePage() {
     <div className="flex min-h-screen bg-[#f0f1f3]">
       <Sidebar items={SECRETARY_SIDEBAR_ITEMS} userRole="secretary" userName="Secretary" />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8 space-y-6">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Attendance Management</h1>

@@ -790,7 +790,7 @@ export function MessageCenter({
 
 
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_1fr]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr] xl:grid-cols-[420px_1fr]">
 
 
 

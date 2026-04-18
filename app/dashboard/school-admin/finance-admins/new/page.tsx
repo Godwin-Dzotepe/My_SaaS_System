@@ -55,7 +55,7 @@ export default function NewFinanceAdminPage() {
         animate="visible"
         variants={containerVariants}
       >
-        <div className="p-4 lg:p-8 max-w-4xl mx-auto space-y-6">
+        <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
           {/* Header */}
           <motion.div variants={itemVariants} className="flex items-center gap-4">
             <Link href="/dashboard/school-admin">

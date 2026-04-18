@@ -147,7 +147,7 @@ export default function SubjectsPage() {
       <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName={userName} />
       
       <motion.div
-        className="flex-1 lg:ml-64 p-4 lg:p-8"
+        className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8"
         initial="hidden"
         animate="visible"
         variants={containerVariants}

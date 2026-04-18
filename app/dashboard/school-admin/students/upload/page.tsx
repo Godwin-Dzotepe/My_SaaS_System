@@ -264,7 +264,7 @@ export default function BulkUploadPage() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName="Admin User" />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         <div className="max-w-5xl mx-auto space-y-6">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Link href="/dashboard/school-admin" className="hover:text-blue-600 transition-colors">Dashboard</Link>

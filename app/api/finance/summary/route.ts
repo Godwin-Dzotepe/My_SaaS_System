@@ -80,15 +80,17 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const total_expected = balances.reduce((sum: number, balance: any) => sum + balance.schoolFee.amount, 0);
-    const total_paid = balances.reduce((sum: number, balance: any) => sum + balance.amount_paid, 0);
-    const total_pending = balances.reduce(
+    const validBalances = balances.filter((balance: any) => balance.schoolFee !== null);
+
+    const total_expected = validBalances.reduce((sum: number, balance: any) => sum + balance.schoolFee.amount, 0);
+    const total_paid = validBalances.reduce((sum: number, balance: any) => sum + balance.amount_paid, 0);
+    const total_pending = validBalances.reduce(
       (sum: number, balance: any) => sum + calculateAmountLeft(balance.schoolFee.amount, balance.amount_paid),
       0
     );
 
     const studentStatusMap = new Map<string, { expected: number; paid: number; left: number }>();
-    for (const balance of balances) {
+    for (const balance of validBalances) {
       const current = studentStatusMap.get(balance.student_id) ?? { expected: 0, paid: 0, left: 0 };
       current.expected += balance.schoolFee.amount;
       current.paid += balance.amount_paid;
@@ -103,7 +105,7 @@ export async function GET(req: NextRequest) {
     ).length;
     const collection_rate = total_expected > 0 ? Number(((total_paid / total_expected) * 100).toFixed(1)) : 0;
 
-    const recent_balances = balances.slice(0, 10).map((balance: any) => ({
+    const recent_balances = validBalances.slice(0, 10).map((balance: any) => ({
       id: balance.id,
       student: balance.student.name,
       class_name: balance.student.class?.class_name || 'N/A',

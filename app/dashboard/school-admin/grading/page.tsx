@@ -369,7 +369,7 @@ export default function GradingConfigurationPage() {
         animate="visible"
         variants={containerVariants}
       >
-        <div className="p-4 lg:p-8 space-y-6">
+        <div className="p-4 md:p-6 lg:p-8 space-y-6">
           {/* Header */}
           <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -402,7 +402,7 @@ export default function GradingConfigurationPage() {
                 <CardTitle>Publish Results</CardTitle>
                 <CardDescription>Notify parents when a class result set is ready. Parents will only see published result periods.</CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
                 <select
                   className="w-full rounded-lg border border-gray-200 px-3 py-2"
                   value={publishForm.class_id}
@@ -458,7 +458,7 @@ export default function GradingConfigurationPage() {
             </div>
           </motion.div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Editor */}
             <motion.div variants={itemVariants} className="xl:col-span-2">
               <Card>
@@ -473,7 +473,8 @@ export default function GradingConfigurationPage() {
                   </Button>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
+                  <div className="overflow-x-auto">
+                  <div className="min-w-[480px] space-y-4">
                     <div className="grid grid-cols-12 gap-4 px-2 text-sm font-semibold text-gray-500 mb-2">
                       <div className="col-span-2">Grade</div>
                       <div className="col-span-2">Min %</div>
@@ -535,6 +536,7 @@ export default function GradingConfigurationPage() {
                       ))}
                     </AnimatePresence>
                   </div>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -548,7 +550,7 @@ export default function GradingConfigurationPage() {
                     <CardDescription>Add the academic years and terms the school should use across scoring, reports, and fees.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px_auto]">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
                       <Input
                         value={periodForm.academic_year}
                         onChange={(e) => setPeriodForm((current) => ({ ...current, academic_year: e.target.value }))}

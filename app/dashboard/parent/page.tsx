@@ -135,7 +135,7 @@ export default function ParentDashboard() {
         animate="visible"
         variants={containerVariants}
       >
-        <div className="p-4 lg:p-8 space-y-6">
+        <div className="p-4 md:p-6 lg:p-8 space-y-6">
           <motion.div
             variants={itemVariants}
             className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4"

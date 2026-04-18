@@ -90,7 +90,7 @@ export default function ParentSettingsPage() {
     <div className="flex min-h-screen bg-[#eef2f7]">
       <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName={userName} />
 
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Account Settings</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage your profile and password</p>

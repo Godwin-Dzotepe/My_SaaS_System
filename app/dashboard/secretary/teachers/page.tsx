@@ -28,7 +28,7 @@ export default function SecretaryTeachersPage() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={SECRETARY_SIDEBAR_ITEMS} userRole="secretary" userName="Secretary User" />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         <div className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>

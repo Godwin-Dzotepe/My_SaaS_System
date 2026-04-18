@@ -200,7 +200,7 @@ export default function TeacherStudentDetailPage() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.25 }}
       >
-        <div ref={pdfContentRef} className="student-pdf-content space-y-6 p-4 lg:p-8">
+        <div ref={pdfContentRef} className="student-pdf-content space-y-6 p-4 md:p-6 lg:p-8">
           {/* Toolbar */}
           <div data-pdf-ignore="true" className="student-pdf-toolbar flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">

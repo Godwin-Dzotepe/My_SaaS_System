@@ -127,7 +127,7 @@ export default function ParentFeesPage() {
         ) : error ? (
           <Card className="p-10 text-center text-red-600">{error}</Card>
         ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             <div className="col-span-2 space-y-6">
               {students.length === 0 ? (
                 <Card className="p-10 text-center text-gray-500">No children associated with this account.</Card>

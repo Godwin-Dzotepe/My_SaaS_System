@@ -83,7 +83,7 @@ export default function NewStudentPage() {
     <div className="flex min-h-screen bg-[#f0f1f3]">
       <Sidebar items={SECRETARY_SIDEBAR_ITEMS} userRole="secretary" userName="Secretary" />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         <div className="max-w-2xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900">Register New Student</h1>

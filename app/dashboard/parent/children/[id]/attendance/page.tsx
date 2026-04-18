@@ -75,7 +75,7 @@ export default function ChildAttendancePage() {
     <div className="flex min-h-screen bg-[#f0f1f3]">
       <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName="Parent" />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8 space-y-6">
         <header className="flex items-center gap-4">
           <Link href="/dashboard/parent/children">
             <Button variant="ghost" size="icon" className="rounded-full hover:bg-white">

@@ -196,7 +196,7 @@ export default function SchoolAdminSettingsPage() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={ADMIN_SIDEBAR_ITEMS} userRole="school-admin" userName={userName} />
 
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Account Settings</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage your profile, password, school information and security</p>
@@ -207,20 +207,21 @@ export default function SchoolAdminSettingsPage() {
         ) : (
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Tab sidebar */}
-            <div className="flex lg:flex-col gap-1 lg:w-52 shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-2 h-fit">
+            <div className="flex overflow-x-auto lg:flex-col gap-1 lg:w-52 shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-2 h-fit">
               {TABS.map(t => {
                 const Icon = t.icon;
                 return (
                   <button key={t.id} onClick={() => setTab(t.id)}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium w-full text-left transition-all ${tab === t.id ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}>
-                    <Icon className="w-4 h-4 shrink-0" />{t.label}
+                    className={`flex items-center gap-2 shrink-0 lg:shrink px-3 py-2.5 rounded-xl text-sm font-medium lg:w-full text-left transition-all ${tab === t.id ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}>
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="hidden sm:inline">{t.label}</span>
                   </button>
                 );
               })}
             </div>
 
             {/* Panel */}
-            <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6">
 
               {/* ── PROFILE ── */}
               {tab === 'profile' && (

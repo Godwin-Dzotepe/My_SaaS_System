@@ -38,7 +38,7 @@ export default function TeacherEventsPage() {
     <div className="flex min-h-screen bg-[#f8f9fb]">
       <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName="Teacher" />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8 space-y-6">
         <header>
           <h1 className="text-2xl font-bold text-[#212529]">School Calendar</h1>
           <p className="text-[#646464] text-sm">Stay updated with upcoming school activities and staff meetings.</p>

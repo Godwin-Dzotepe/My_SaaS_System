@@ -146,7 +146,7 @@ export default function NewTeacherPage() {
         animate="visible"
         variants={containerVariants}
       >
-        <div className="p-4 lg:p-8 max-w-4xl mx-auto space-y-6">
+        <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
           <motion.div variants={itemVariants} className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard/school-admin/teachers">

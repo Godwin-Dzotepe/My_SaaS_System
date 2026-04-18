@@ -145,7 +145,7 @@ export default function SecretaryDashboard() {
       <Sidebar items={SECRETARY_SIDEBAR_ITEMS} userRole="secretary" userName={userName} />
 
       <motion.div className="flex-1 lg:ml-64" initial="hidden" animate="visible" variants={containerVariants}>
-        <div className="p-4 lg:p-8 space-y-6">
+        <div className="p-4 md:p-6 lg:p-8 space-y-6">
 
           {/* Header */}
           <motion.div

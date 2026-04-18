@@ -67,7 +67,7 @@ export default function ParentHomeworkPage() {
     <div className="flex min-h-screen bg-[#eef2f7]">
       <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName={userName} />
 
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         <div className="mb-6">
           <Link href="/dashboard/parent" className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 mb-3">
             <ChevronLeft className="w-4 h-4" /> Back to dashboard

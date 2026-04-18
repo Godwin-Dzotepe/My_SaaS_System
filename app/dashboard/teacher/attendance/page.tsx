@@ -110,7 +110,7 @@ export default function TeacherAttendancePage() {
     <div className="flex min-h-screen bg-[#f8f9fb]">
       <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName={userName} />
       
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8 space-y-6">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-[#212529]">Mark Attendance</h1>

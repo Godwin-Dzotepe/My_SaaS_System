@@ -150,7 +150,7 @@ export default function ParentResultsPage() {
     <div className="flex min-h-screen bg-[#eef2f7]">
       <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName="Parent" />
 
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         {isLoading ? (
           <div className="flex justify-center py-24">
             <Loader2 className="w-8 h-8 animate-spin text-[#3f7afc]" />

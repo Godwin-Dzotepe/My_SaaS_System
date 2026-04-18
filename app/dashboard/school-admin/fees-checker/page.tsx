@@ -160,7 +160,7 @@ export default function FeesCheckerPage() {
                 <div className="space-y-4">
                   {rows.map((row) => (
                     <div key={row.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr_1fr_1.1fr]">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_1fr_1fr_1.1fr]">
                         <div className="space-y-2">
                           <p className="text-lg font-semibold text-gray-900">{row.child_name}</p>
                           <p className="text-sm text-gray-500">{row.class_name}</p>
@@ -176,7 +176,7 @@ export default function FeesCheckerPage() {
                           <p className="text-sm text-gray-500">{row.term || 'No term'} ({row.academic_year})</p>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div className="grid grid-cols-3 gap-2 text-xs sm:gap-3 sm:text-sm">
                           <div className="rounded-lg bg-gray-50 p-3">
                             <p className="text-gray-500">Total</p>
                             <p className="mt-1 font-semibold text-gray-900">{formatGhanaCedis(row.total_amount)}</p>

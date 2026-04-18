@@ -113,7 +113,7 @@ export const GET = withAuth(
 
       return NextResponse.json({
 
-        messages: messages.map((message) => ({
+        messages: messages.filter((message) => message.sender !== null && message.recipient !== null).map((message) => ({
 
           id: message.id,
 
