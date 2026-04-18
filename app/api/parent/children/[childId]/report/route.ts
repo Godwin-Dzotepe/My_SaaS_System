@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withAuth } from '@/lib/api-auth';
 import { mergeAcademicPeriods } from '@/lib/academic-periods';
-import { parseResultPublishPayload, RESULT_PUBLISHED_NOTIFICATION } from '@/lib/result-publishing';
+
 
 export const GET = withAuth(
   async ({ session, params, req }) => {
@@ -52,54 +52,13 @@ export const GET = withAuth(
         return NextResponse.json({ error: 'Child not found.' }, { status: 404 });
       }
 
-      const releaseNotifications = await prisma.appNotification.findMany({
-        where: {
-          school_id: child.school_id,
-          title: RESULT_PUBLISHED_NOTIFICATION,
-        },
-        select: {
-          title: true,
-          body: true,
-        },
+      const scorePeriods = await prisma.score.findMany({
+        where: { student_id: childId },
+        select: { academic_year: true, term: true },
+        distinct: ['academic_year', 'term'],
       });
 
-      const academicPeriodModel = (prisma as any).academicPeriod;
-
-      const [configuredPeriods, scorePeriods] = await Promise.all([
-        academicPeriodModel
-          ? academicPeriodModel.findMany({
-              where: {
-                school_id: child.school_id,
-                is_active: true,
-              },
-              select: {
-                academic_year: true,
-                term: true,
-              },
-            })
-          : Promise.resolve([]),
-        prisma.score.findMany({
-          where: {
-            student_id: childId,
-          },
-          select: {
-            academic_year: true,
-            term: true,
-          },
-          distinct: ['academic_year', 'term'],
-        }),
-      ]);
-
-      const publishedPeriods = releaseNotifications
-        .map((notification) => parseResultPublishPayload(notification.body))
-        .filter((payload): payload is NonNullable<ReturnType<typeof parseResultPublishPayload>> => Boolean(payload))
-        .filter((payload) => payload.studentId === childId)
-        .map((payload) => ({
-          academic_year: payload.academicYear,
-          term: payload.term,
-        }));
-
-      const availablePeriods = mergeAcademicPeriods(configuredPeriods, scorePeriods);
+      const availablePeriods = mergeAcademicPeriods(scorePeriods);
 
       const { searchParams } = new URL(req.url);
       const selectedAcademicYear = searchParams.get('academic_year') || availablePeriods[0]?.academic_year || '';
