@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authorize, validateSchool } from '@/lib/api-auth';
+import { logAudit } from '@/lib/audit';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 
@@ -28,7 +29,7 @@ export async function GET(
     const { id: teacherId } = await params;
 
     const teacher = await prisma.user.findFirst({
-      where: { id: teacherId, role: 'teacher' },
+      where: { id: teacherId, role: 'teacher', deleted_at: null },
       select: {
         id: true,
         name: true,
@@ -143,7 +144,7 @@ export async function PUT(
 
     // Verify teacher exists and belongs to user's school
     const teacher = await prisma.user.findFirst({
-      where: { id: teacherId, role: 'teacher' }
+      where: { id: teacherId, role: 'teacher', deleted_at: null }
     });
 
     if (!teacher) {
@@ -315,7 +316,7 @@ export async function DELETE(
     const { id: teacherId } = await params;
 
     const teacher = await prisma.user.findFirst({
-      where: { id: teacherId, role: 'teacher' }
+      where: { id: teacherId, role: 'teacher', deleted_at: null }
     });
 
     if (!teacher) {
@@ -326,8 +327,20 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    await prisma.user.delete({
-      where: { id: teacherId }
+    await prisma.user.update({
+      where: { id: teacherId },
+      data: { deleted_at: new Date() },
+    });
+
+    logAudit({
+      prismaClient: prisma,
+      schoolId: teacher.school_id ?? undefined,
+      performedBy: user.id,
+      actorRole: user.role,
+      action: 'DELETE',
+      entityType: 'Teacher',
+      entityId: teacherId,
+      ipAddress: req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? undefined,
     });
 
     return NextResponse.json({ message: 'Teacher deleted successfully' });

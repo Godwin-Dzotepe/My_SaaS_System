@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { formatGhanaCedis } from '@/lib/currency';
+import { downloadPdfFromElement } from '@/lib/client-pdf';
 
 interface StudentDetail {
   id: string;
@@ -177,6 +178,7 @@ export default function StudentDetailPage() {
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const pdfContentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const fetchStudent = async () => {
@@ -264,8 +266,19 @@ export default function StudentDetailPage() {
     student.guardian_phone ||
     student.parent_phone ||
     student.parent?.phone;
-  const handleDownloadPdf = () => {
-    window.print();
+  const handleDownloadPdf = async () => {
+    try {
+      await downloadPdfFromElement(`student-profile-${student.name}`, pdfContentRef.current, {
+        ignoreSelectors: ['[data-pdf-ignore="true"]'],
+        imageType: 'PNG',
+        imageQuality: 1,
+        showHeaderFooter: false,
+        deliveryMode: 'download',
+      });
+    } catch (error) {
+      console.error('[student.pdf] Failed to generate PDF:', error);
+      window.print();
+    }
   };
 
   return (
@@ -278,8 +291,8 @@ export default function StudentDetailPage() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.25 }}
       >
-        <div className="student-pdf-content space-y-6 p-4 lg:p-8">
-          <div className="student-pdf-toolbar flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div ref={pdfContentRef} className="student-pdf-content space-y-6 p-4 lg:p-8">
+          <div data-pdf-ignore="true" className="student-pdf-toolbar flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard/school-admin/students">
                 <Button variant="ghost" size="sm" className="gap-2">
@@ -296,6 +309,9 @@ export default function StudentDetailPage() {
               <Button onClick={handleDownloadPdf} className="gap-2">
                 <Download className="h-4 w-4" />
                 Download PDF
+              </Button>
+              <Button variant="outline" onClick={() => window.print()} className="gap-2">
+                Print
               </Button>
               <Link href={`/dashboard/school-admin/students/edit/${student.id}`}>
                 <Button>Edit Student</Button>

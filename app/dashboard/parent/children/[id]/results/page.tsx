@@ -3,13 +3,12 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, Download, FileText, Loader2, Sparkles } from 'lucide-react';
+import { ChevronLeft, FileText, Loader2, Printer, Sparkles } from 'lucide-react';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { PARENT_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { MessageDialog } from '@/components/ui/message-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface ReportScore {
@@ -48,104 +47,6 @@ interface ReportResponse {
   scores: ReportScore[];
 }
 
-function normalizePdfText(value: string) {
-  return value
-    .normalize('NFKD')
-    .replace(/[^\x20-\x7E]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function escapePdfText(value: string) {
-  return value
-    .replaceAll('\\', '\\\\')
-    .replaceAll('(', '\\(')
-    .replaceAll(')', '\\)');
-}
-
-function wrapPdfLine(line: string, maxChars = 92) {
-  const words = normalizePdfText(line).split(' ');
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    if (!word) continue;
-    if (!current) {
-      current = word;
-      continue;
-    }
-
-    if (`${current} ${word}`.length <= maxChars) {
-      current = `${current} ${word}`;
-      continue;
-    }
-
-    lines.push(current);
-    current = word;
-  }
-
-  if (current) {
-    lines.push(current);
-  }
-
-  return lines.length ? lines : [''];
-}
-
-function buildPdfFromLines(lines: string[]) {
-  const linesPerPage = 48;
-  const pageChunks: string[][] = [];
-  for (let i = 0; i < lines.length; i += linesPerPage) {
-    pageChunks.push(lines.slice(i, i + linesPerPage));
-  }
-  if (pageChunks.length === 0) {
-    pageChunks.push(['No content available.']);
-  }
-
-  const objects: string[] = [];
-  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
-
-  const pageObjectNumbers: number[] = [];
-  const pageEntries: string[] = [];
-  let nextObjectNumber = 4;
-
-  for (const chunk of pageChunks) {
-    const pageObjectNumber = nextObjectNumber++;
-    const contentObjectNumber = nextObjectNumber++;
-    pageObjectNumbers.push(pageObjectNumber);
-
-    const contentLines = chunk
-      .map((line) => `(${escapePdfText(line)}) Tj\nT*`)
-      .join('\n');
-    const contentStream = `BT\n/F1 10 Tf\n14 TL\n40 800 Td\n${contentLines}\nET`;
-
-    objects[contentObjectNumber] = `<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream`;
-    pageEntries.push(`${pageObjectNumber} 0 R`);
-    objects[pageObjectNumber] =
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ` +
-      `/Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`;
-  }
-
-  objects[2] = `<< /Type /Pages /Kids [${pageEntries.join(' ')}] /Count ${pageObjectNumbers.length} >>`;
-  objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
-
-  let pdf = '%PDF-1.4\n';
-  const offsets: number[] = [0];
-  for (let i = 1; i < objects.length; i++) {
-    offsets[i] = pdf.length;
-    pdf += `${i} 0 obj\n${objects[i]}\nendobj\n`;
-  }
-
-  const xrefStart = pdf.length;
-  pdf += `xref\n0 ${objects.length}\n`;
-  pdf += '0000000000 65535 f \n';
-  for (let i = 1; i < objects.length; i++) {
-    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
-  }
-
-  pdf += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-  return new TextEncoder().encode(pdf);
-}
-
 function getGradeTone(grade: string | null) {
   if (!grade) return 'bg-gray-100 text-gray-600';
   if (grade.startsWith('A')) return 'bg-emerald-100 text-emerald-700';
@@ -163,8 +64,7 @@ export default function ChildResultsPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [selectedYear, setSelectedYear] = React.useState('');
   const [selectedTerm, setSelectedTerm] = React.useState('');
-  const [downloading, setDownloading] = React.useState(false);
-  const [downloadErrorMessage, setDownloadErrorMessage] = React.useState('');
+  const handlePrintPdf = () => window.print();
 
   const fetchReport = React.useCallback(async (academicYear?: string, term?: string) => {
     const firstLoad = academicYear === undefined && term === undefined;
@@ -208,60 +108,6 @@ export default function ChildResultsPage() {
     await fetchReport(selectedYear, selectedTerm);
   };
 
-  const handleDownloadPdf = () => {
-    if (!report) return;
-
-    setDownloading(true);
-    try {
-      const lines: string[] = [
-        'STUDENT REPORT CARD',
-        '',
-        `Name: ${report.child.name || 'N/A'}`,
-        `School: ${report.child.school?.school_name || 'N/A'}`,
-        `Class: ${report.child.class?.class_name || 'N/A'}`,
-        `Student Number: ${report.child.student_number || 'N/A'}`,
-        `Period: ${report.selectedPeriod.term} - ${report.selectedPeriod.academic_year}`,
-        `Average Score: ${report.summary.averageScore ?? 'N/A'}`,
-        `Position: ${report.summary.position ?? 'N/A'}`,
-        '',
-        'Subject Breakdown',
-        'Subject | Class Score | Exam Score | Total | Grade | Remark | Behavior | Teacher Advice',
-      ];
-
-      if (report.scores.length === 0) {
-        lines.push('No results available for this period.');
-      } else {
-        report.scores.forEach((score, index) => {
-          const rawLine =
-            `${index + 1}. ${score.subject.subject_name} | ${score.classScore ?? 'N/A'} | ${score.examScore ?? 'N/A'} | ` +
-            `${score.totalScore ?? 'N/A'} | ${score.grade ?? 'N/A'} | ${score.remark ?? 'N/A'} | ` +
-            `${score.behavior ?? 'N/A'} | ${score.teacherAdvice ?? 'N/A'}`;
-          lines.push(...wrapPdfLine(rawLine));
-        });
-      }
-
-      const pdfBytes = buildPdfFromLines(lines);
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `${normalizePdfText(report.child.name || 'student-report')
-        .replaceAll(' ', '-')
-        .toLowerCase()}-${normalizePdfText(report.selectedPeriod.term || 'term')
-        .replaceAll(' ', '-')
-        .toLowerCase()}-${normalizePdfText(report.selectedPeriod.academic_year || 'report')}.pdf`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
-    } catch (downloadError) {
-      console.error(downloadError);
-      setDownloadErrorMessage(downloadError instanceof Error ? downloadError.message : 'Failed to prepare the PDF download.');
-    } finally {
-      setDownloading(false);
-    }
-  };
-
   const averageScore = report?.summary.averageScore ?? 'N/A';
   const passingSubjects = report?.scores.filter((score) => (score.totalScore ?? 0) >= 50).length ?? 0;
   const academicYears = Array.from(new Set(report?.availablePeriods.map((period) => period.academic_year) || []));
@@ -269,19 +115,35 @@ export default function ChildResultsPage() {
 
   return (
     <div className="flex min-h-screen bg-[#eef2f7]">
-      <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName="Parent" />
+      <style>{`
+        @media print {
+          [data-pdf-ignore="true"] { display: none !important; }
+          .print-sidebar { display: none !important; }
+          .print-main { margin-left: 0 !important; padding: 0 !important; }
+          body { background: white !important; }
+          @page { margin: 1.2cm; size: A4 portrait; }
+        }
+      `}</style>
 
-      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <div className="print-sidebar">
+        <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName="Parent" />
+      </div>
+
+      <div className="print-main flex-1 lg:ml-64 p-4 lg:p-8">
         {loading ? (
           <div className="flex justify-center py-24">
             <Loader2 className="w-8 h-8 animate-spin text-[#3f7afc]" />
           </div>
         ) : (
-          <div className="max-w-7xl mx-auto space-y-6">
+          <div className="mx-auto w-full space-y-6 max-w-7xl">
             <section className="rounded-[28px] bg-[linear-gradient(135deg,#0f2f66_0%,#1f61c3_50%,#8fc6ff_100%)] p-6 lg:p-8 text-white shadow-[0_20px_60px_rgba(20,83,183,0.24)]">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
-                  <Link href="/dashboard/parent/children" className="mb-4 inline-flex items-center gap-2 text-sm text-blue-100 hover:text-white">
+                  <Link
+                    data-pdf-ignore="true"
+                    href="/dashboard/parent/children"
+                    className="mb-4 inline-flex items-center gap-2 text-sm text-blue-100 hover:text-white"
+                  >
                     <ChevronLeft className="w-4 h-4" />
                     Back to children
                   </Link>
@@ -294,9 +156,14 @@ export default function ChildResultsPage() {
                     A focused academic view for one child, built in the same report style as the parent-wide results center.
                   </p>
                 </div>
-                <Button onClick={handleDownloadPdf} disabled={!report || downloading} className="gap-2 bg-white text-[#1f61c3] hover:bg-blue-50">
-                  {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  Download PDF
+                <Button
+                  data-pdf-ignore="true"
+                  onClick={handlePrintPdf}
+                  disabled={!report}
+                  className="gap-2 bg-white text-[#1f61c3] hover:bg-blue-50"
+                >
+                  <Printer className="w-4 h-4" />
+                  Print / Save PDF
                 </Button>
               </div>
             </section>
@@ -307,7 +174,7 @@ export default function ChildResultsPage() {
               </Card>
             ) : report ? (
               <>
-                <Card className="border-none bg-white shadow-sm">
+                <Card data-pdf-ignore="true" className="border-none bg-white shadow-sm">
                   <CardContent className="p-5 lg:p-6">
                     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr_0.8fr_auto] xl:items-end">
                       <div>
@@ -321,7 +188,15 @@ export default function ChildResultsPage() {
                       </div>
                       <div>
                         <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-gray-400">Academic Year</label>
-                        <Select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
+                        <Select 
+                          value={selectedYear} 
+                          onChange={(e) => {
+                            const nextYear = e.target.value;
+                            setSelectedYear(nextYear);
+                            const firstTerm = report?.availablePeriods.find(p => p.academic_year === nextYear)?.term || '';
+                            setSelectedTerm(firstTerm);
+                          }}
+                        >
                           <option value="">
                             {academicYears.length > 0 ? 'Select academic year' : 'No academic years available'}
                           </option>
@@ -435,13 +310,6 @@ export default function ChildResultsPage() {
           </div>
         )}
       </div>
-      <MessageDialog
-        isOpen={Boolean(downloadErrorMessage)}
-        onClose={() => setDownloadErrorMessage('')}
-        title="Download Problem"
-        message={downloadErrorMessage}
-        tone="error"
-      />
     </div>
   );
 }

@@ -165,7 +165,7 @@ export const POST = withAuth(
       const parentUsers = await prisma.user.findMany({
         where: {
           role: 'parent',
-          school_id: schoolId,
+          // Include parents without a school assignment; parent access is driven by IDs/phones.
           OR: [
             { id: { in: [...parentIds] } },
             { phone: { in: [...phoneSet] } },
@@ -262,9 +262,9 @@ export const POST = withAuth(
         notifications_sent: notifications.length,
         sms_sent: smsQueue.size,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error publishing results:', error);
-      return NextResponse.json({ error: error?.message || 'Failed to publish results.' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to publish results.' }, { status: 500 });
     }
   },
   {

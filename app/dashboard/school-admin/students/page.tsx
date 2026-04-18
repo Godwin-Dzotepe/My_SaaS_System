@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActionMenu } from '@/components/ui/action-menu';
 import {
   Plus,
@@ -11,6 +11,10 @@ import {
   Loader2,
   Users,
   RefreshCcw,
+  Trash2,
+  MoveRight,
+  ChevronDown,
+  Download,
 } from 'lucide-react';
 import Link from 'next/link';
 import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
@@ -28,6 +32,11 @@ interface Student {
   status: string;
   class: { id: string; class_name: string };
   created_at: string;
+}
+
+interface ClassOption {
+  id: string;
+  class_name: string;
 }
 
 const containerVariants = {
@@ -48,10 +57,20 @@ export default function StudentsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
+  // Bulk select state
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [targetClassId, setTargetClassId] = useState('');
+  const bulkMenuRef = useRef<HTMLDivElement>(null);
+
   const fetchStudents = async () => {
     try {
       setLoading(true);
       setError('');
+      setSelected(new Set());
 
       const response = await fetch('/api/students/list', {
         cache: 'no-store',
@@ -63,9 +82,8 @@ export default function StudentsPage() {
         throw new Error(data?.error || 'Failed to fetch students.');
       }
 
-      setStudents(Array.isArray(data) ? data : []);
+      setStudents(Array.isArray(data) ? data : (data?.students ?? []));
     } catch (fetchError) {
-      console.error('Error fetching students:', fetchError);
       setStudents([]);
       setError(fetchError instanceof Error ? fetchError.message : 'Failed to fetch students.');
     } finally {
@@ -73,26 +91,111 @@ export default function StudentsPage() {
     }
   };
 
+  const fetchClasses = useCallback(async () => {
+    try {
+      const res = await fetch('/api/classes', { credentials: 'include' });
+      const data = await res.json().catch(() => null);
+      if (res.ok && Array.isArray(data)) setClasses(data);
+    } catch {
+      // non-critical
+    }
+  }, []);
+
   useEffect(() => {
     fetchStudents();
+    fetchClasses();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Close bulk menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (bulkMenuRef.current && !bulkMenuRef.current.contains(e.target as Node)) {
+        setBulkMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const handleDeleteStudent = async (studentId: string) => {
     try {
-      const response = await fetch(`/api/students/${studentId}`, {
-        method: 'DELETE',
-      });
-
+      const response = await fetch(`/api/students/${studentId}`, { method: 'DELETE' });
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.error || 'Failed to delete student');
       }
-
       await fetchStudents();
     } catch (deleteError) {
-      console.error('Error deleting student:', deleteError);
       setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete student.');
     }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === filteredStudents.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filteredStudents.map(s => s.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} student(s)? This action cannot be undone easily.`)) return;
+    setBulkLoading(true);
+    setBulkMenuOpen(false);
+    try {
+      const res = await fetch('/api/students/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', studentIds: Array.from(selected) }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'Bulk delete failed');
+      }
+      await fetchStudents();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk delete failed.');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkMove = async () => {
+    if (!targetClassId) return;
+    setBulkLoading(true);
+    setShowMoveModal(false);
+    try {
+      const res = await fetch('/api/students/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_class', studentIds: Array.from(selected), class_id: targetClassId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'Bulk move failed');
+      }
+      setTargetClassId('');
+      await fetchStudents();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk move failed.');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleExport = () => {
+    window.location.href = '/api/students/export?format=csv';
   };
 
   const filteredStudents = students.filter((student) => {
@@ -106,6 +209,9 @@ export default function StudentsPage() {
 
     return searchMatches && statusMatches;
   });
+
+  const allSelected = filteredStudents.length > 0 && selected.size === filteredStudents.length;
+  const someSelected = selected.size > 0 && selected.size < filteredStudents.length;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -130,6 +236,10 @@ export default function StudentsPage() {
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
+              <Button variant="outline" className="gap-2" onClick={handleExport}>
+                <Download className="h-4 w-4" />
+                Export CSV
+              </Button>
               <Link href="/dashboard/school-admin/students/upload" className="w-full sm:w-auto">
                 <Button variant="outline" className="w-full">
                   Bulk Upload
@@ -173,6 +283,53 @@ export default function StudentsPage() {
             </div>
           </motion.div>
 
+          {/* Bulk actions toolbar */}
+          {selected.size > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3"
+            >
+              <span className="text-sm font-medium text-blue-700">{selected.size} student(s) selected</span>
+              <div className="ml-auto flex items-center gap-2" ref={bulkMenuRef}>
+                {bulkLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
+                <div className="relative">
+                  <button
+                    onClick={() => setBulkMenuOpen(v => !v)}
+                    disabled={bulkLoading}
+                    className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+                  >
+                    Bulk Actions <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                  {bulkMenuOpen && (
+                    <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-xl border border-gray-200 bg-white shadow-lg">
+                      <button
+                        onClick={() => { setBulkMenuOpen(false); setShowMoveModal(true); }}
+                        className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-t-xl"
+                      >
+                        <MoveRight className="h-4 w-4 text-blue-500" />
+                        Move to class
+                      </button>
+                      <button
+                        onClick={handleBulkDelete}
+                        className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-b-xl"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete selected
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Clear
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           {error ? (
             <motion.div variants={itemVariants}>
               <Card className="border-red-200 bg-red-50">
@@ -203,16 +360,20 @@ export default function StudentsPage() {
                   </div>
                 ) : (
                   <>
+                    {/* Mobile cards */}
                     <div className="divide-y divide-gray-100 md:hidden">
                       {filteredStudents.map((student) => (
                         <div key={student.id} className="space-y-4 p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={selected.has(student.id)}
+                                onChange={() => toggleSelect(student.id)}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
                               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">
-                                {student.name
-                                  .split(' ')
-                                  .map((name) => name[0])
-                                  .join('')}
+                                {student.name.split(' ').map((n) => n[0]).join('')}
                               </div>
                               <div>
                                 <p className="font-semibold text-gray-900">{student.name}</p>
@@ -225,12 +386,10 @@ export default function StudentsPage() {
                               {student.status}
                             </Badge>
                           </div>
-
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <Phone className="h-4 w-4 text-gray-400" />
                             {student.parent_phone || 'No phone on file'}
                           </div>
-
                           <div className="flex justify-end">
                             <ActionMenu
                               entityId={student.id}
@@ -249,10 +408,20 @@ export default function StudentsPage() {
                       ))}
                     </div>
 
+                    {/* Desktop table */}
                     <div className="hidden overflow-x-auto md:block">
                       <table className="w-full">
                         <thead>
                           <tr className="border-b border-gray-100 bg-gray-50/50">
+                            <th className="w-12 px-4 py-4">
+                              <input
+                                type="checkbox"
+                                checked={allSelected}
+                                ref={el => { if (el) el.indeterminate = someSelected; }}
+                                onChange={toggleSelectAll}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                            </th>
                             <th className="px-6 py-4 text-left text-sm font-medium uppercase tracking-wider text-gray-500">
                               Student Name
                             </th>
@@ -277,15 +446,20 @@ export default function StudentsPage() {
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: idx * 0.05 }}
-                              className="group border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-50/80"
+                              className={`group border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-50/80 ${selected.has(student.id) ? 'bg-blue-50/40' : ''}`}
                             >
+                              <td className="px-4 py-4">
+                                <input
+                                  type="checkbox"
+                                  checked={selected.has(student.id)}
+                                  onChange={() => toggleSelect(student.id)}
+                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                              </td>
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
                                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">
-                                    {student.name
-                                      .split(' ')
-                                      .map((name) => name[0])
-                                      .join('')}
+                                    {student.name.split(' ').map((n) => n[0]).join('')}
                                   </div>
                                   <span className="font-semibold text-gray-900">{student.name}</span>
                                 </div>
@@ -332,6 +506,41 @@ export default function StudentsPage() {
           </motion.div>
         </div>
       </motion.div>
+
+      {/* Move to class modal */}
+      {showMoveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="mb-1 text-lg font-semibold text-gray-900">Move to Class</h2>
+            <p className="mb-4 text-sm text-gray-500">Move {selected.size} student(s) to a different class.</p>
+            <select
+              value={targetClassId}
+              onChange={e => setTargetClassId(e.target.value)}
+              className="mb-4 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a class...</option>
+              {classes.map(c => (
+                <option key={c.id} value={c.id}>{c.class_name}</option>
+              ))}
+            </select>
+            <div className="flex gap-3">
+              <button
+                onClick={handleBulkMove}
+                disabled={!targetClassId}
+                className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                Move Students
+              </button>
+              <button
+                onClick={() => { setShowMoveModal(false); setTargetClassId(''); }}
+                className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -37,10 +37,17 @@ export default function SecretaryStudentList() {
   const fetchStudents = async () => {
     try {
       setLoading(true);
+      setError('');
       const res = await fetch('/api/students/list');
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to fetch students');
+      }
       if (Array.isArray(data)) setStudents(data);
-    } catch (err) {} finally {
+    } catch (err) {
+      console.error('Error fetching students:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch students');
+    } finally {
       setLoading(false);
     }
   };
@@ -48,9 +55,15 @@ export default function SecretaryStudentList() {
   const fetchClasses = async () => {
     try {
       const res = await fetch('/api/classes');
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to fetch classes');
+      }
       if (Array.isArray(data)) setClasses(data);
-    } catch (err) {}
+    } catch (err) {
+      console.error('Error fetching classes:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch classes');
+    }
   };
 
   React.useEffect(() => {
@@ -61,10 +74,15 @@ export default function SecretaryStudentList() {
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/students/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setStudents(students.filter(s => s.id !== id));
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete student');
       }
-    } catch (err) {}
+      setStudents(students.filter(s => s.id !== id));
+    } catch (err) {
+      console.error('Error deleting student:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete student');
+    }
     finally {
       setStudentToDelete(null);
     }

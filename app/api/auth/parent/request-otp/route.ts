@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { generateOTP, hashOTP, sendOTPSMS } from '@/lib/sms-service';
+import { check, getClientIp, OTP_REQUEST_LIMITER } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
 
 /**
  * Rate limiting configuration
@@ -19,6 +21,16 @@ const requestOTPSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // IP-level rate limit on top of existing DB-level cooldown
+  const ip = getClientIp(req);
+  const rl = check(`otp_request:${ip}`, OTP_REQUEST_LIMITER.limit, OTP_REQUEST_LIMITER.windowMs);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many OTP requests. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
+    );
+  }
+
   try {
     const body = await req.json();
     const validation = requestOTPSchema.safeParse(body);
@@ -141,7 +153,7 @@ export async function POST(req: NextRequest) {
     );
 
   } catch (error) {
-    console.error('[OTP Request Error]:', error instanceof Error ? error.message : 'Unknown error');
+    logger.error('[OTP Request Error]', { error: error instanceof Error ? error.message : 'Unknown error' });
     return NextResponse.json(
       { error: 'Failed to process request. Please try again later.' },
       { status: 500 }

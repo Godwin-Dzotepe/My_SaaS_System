@@ -26,6 +26,7 @@ export const GET = withAuth(
         where: {
           OR: parentAccessFilters,
           status: 'active',
+          deleted_at: null,
         },
         include: {
           school: {

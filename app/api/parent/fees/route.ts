@@ -8,6 +8,30 @@ import {
   getStudentFeeBalanceModel,
 } from '@/lib/fee-balances';
 
+const FEE_TYPE_LABEL_PREFIX = '[fee_type:';
+
+function decodeFeeTypeAndDescription(feeType: string, description: string | null) {
+  if (feeType !== 'OTHER' || !description?.startsWith(FEE_TYPE_LABEL_PREFIX)) {
+    return { fee_type: feeType, description };
+  }
+
+  const closingBracketIndex = description.indexOf(']');
+  if (closingBracketIndex < 0) {
+    return { fee_type: feeType, description };
+  }
+
+  const customType = description.slice(FEE_TYPE_LABEL_PREFIX.length, closingBracketIndex).trim();
+  if (!customType) {
+    return { fee_type: feeType, description };
+  }
+
+  const cleanedDescription = description.slice(closingBracketIndex + 1).trim();
+  return {
+    fee_type: customType,
+    description: cleanedDescription || null,
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     type ChildBalanceRow = {
@@ -37,7 +61,7 @@ export async function GET(req: NextRequest) {
     };
 
     const auth = await authorize(req, ['parent']);
-    if (auth instanceof NextResponse) return auth;
+    if (!auth || typeof auth !== 'object' || !('user' in auth)) return auth as NextResponse;
     const { user } = auth;
 
     const parentAccessFilters = [
@@ -56,6 +80,7 @@ export async function GET(req: NextRequest) {
       where: {
         OR: parentAccessFilters,
         status: 'active',
+        deleted_at: null,
       },
       include: {
         class: {
@@ -118,18 +143,24 @@ export async function GET(req: NextRequest) {
     }
 
     const response = children.map((child) => {
-      const childBalances: ChildFeeSummaryRow[] = (balancesByStudent.get(child.id) ?? []).map((balance: ChildBalanceRow) => ({
-        id: balance.id,
-        fee_type: balance.schoolFee.fee_type,
-        description: balance.schoolFee.description,
-        academic_year: balance.schoolFee.academic_year,
-        term: balance.schoolFee.term,
-        total_amount: balance.schoolFee.amount,
-        amount_paid: balance.amount_paid,
-        amount_left: calculateAmountLeft(balance.schoolFee.amount, balance.amount_paid),
-        status: calculateFeeStatus(balance.schoolFee.amount, balance.amount_paid),
-        updated_at: balance.updated_at,
-      }));
+      const childBalances: ChildFeeSummaryRow[] = (balancesByStudent.get(child.id) ?? [])
+        .filter((balance: ChildBalanceRow) => balance.schoolFee)
+        .map((balance: ChildBalanceRow) => {
+        const decodedFee = decodeFeeTypeAndDescription(balance.schoolFee.fee_type, balance.schoolFee.description);
+
+        return {
+          id: balance.id,
+          fee_type: decodedFee.fee_type,
+          description: decodedFee.description,
+          academic_year: balance.schoolFee.academic_year,
+          term: balance.schoolFee.term,
+          total_amount: balance.schoolFee.amount,
+          amount_paid: balance.amount_paid,
+          amount_left: calculateAmountLeft(balance.schoolFee.amount, balance.amount_paid),
+          status: calculateFeeStatus(balance.schoolFee.amount, balance.amount_paid),
+          updated_at: balance.updated_at,
+        };
+      });
 
       return {
         id: child.id,

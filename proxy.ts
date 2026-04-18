@@ -42,7 +42,7 @@ function getDashboardRoute(role?: string) {
   }
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow static files and Next.js internals
@@ -56,7 +56,7 @@ export function proxy(request: NextRequest) {
 
   // Get token from cookie or header
   const token = request.cookies.get('token')?.value;
-  const verifiedUser = token ? verifyToken(token) : null;
+  const verifiedUser = token ? await verifyToken(token) : null;
 
   if (token && !verifiedUser) {
     const response = pathname.startsWith('/api/')

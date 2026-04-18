@@ -114,10 +114,18 @@ export default function ParentResultsPage() {
 
     try {
       const res = await fetch(`/api/parent/children/${selectedChild}/scores?academic_year=${encodeURIComponent(selectedYear)}&term=${encodeURIComponent(selectedTerm)}`);
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to fetch scores.');
+        const errorData = await res.json();
+        // Handle specific "not published" error from the API
+        if (res.status === 403 && errorData.error?.includes('not published')) {
+          setError('Results for this period are not published yet. Please check back later.');
+        } else {
+          throw new Error(errorData.error || 'Failed to fetch scores.');
+        }
+        setScores([]); // Clear scores on error
+        return; // Stop execution
       }
+      const data = await res.json();
 
       setScores(data);
     } catch (fetchError) {

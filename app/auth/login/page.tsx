@@ -49,6 +49,9 @@ export default function LoginPage() {
   const [helperMessage, setHelperMessage] = useState('');
   const [firstTimeLoading, setFirstTimeLoading] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [requires2fa, setRequires2fa] = useState(false);
+  const [pendingToken, setPendingToken] = useState('');
+  const [totpCode, setTotpCode] = useState('');
 
   useEffect(() => {
     const checkDatabaseHealth = async () => {
@@ -119,6 +122,33 @@ export default function LoginPage() {
         throw new Error(data?.error || `Login failed (${res.status})`);
       }
 
+      if (data?.requires2fa) {
+        setPendingToken(data.pending_token);
+        setRequires2fa(true);
+        return;
+      }
+
+      const redirect = ROLE_REDIRECTS[data.user.role] || '/dashboard';
+      router.push(redirect);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handle2faSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'login', pending_token: pendingToken, totp_token: totpCode }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Invalid code');
       const redirect = ROLE_REDIRECTS[data.user.role] || '/dashboard';
       router.push(redirect);
     } catch (err: any) {
@@ -230,6 +260,42 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {requires2fa ? (
+              <form onSubmit={handle2faSubmit} className="space-y-5">
+                <div className="rounded-2xl border border-[#3f7afc]/20 bg-[#e1f1ff]/40 px-4 py-3 text-sm text-[#3f7afc]">
+                  <strong className="block">2-Step Verification</strong>
+                  <span className="mt-1 block text-[#646464]">Enter the 6-digit code from your authenticator app.</span>
+                </div>
+                {error && (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+                )}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-[#646464]">Authenticator Code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    value={totpCode}
+                    onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="000000"
+                    required
+                    autoFocus
+                    className="w-full rounded-2xl border border-[#d8deea] bg-white px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-[#212529] outline-none transition focus:border-[#3f7afc] focus:ring-4 focus:ring-[#3f7afc]/10"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading || totpCode.length !== 6}
+                  className="w-full rounded-2xl bg-[#3f7afc] px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#3f7afc]/25 transition hover:bg-[#2e6aeb] disabled:opacity-60"
+                >
+                  {loading ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : 'Verify & Sign in'}
+                </button>
+                <button type="button" onClick={() => { setRequires2fa(false); setError(''); setTotpCode(''); }} className="w-full text-sm text-[#646464] hover:text-[#3f7afc]">
+                  Back to login
+                </button>
+              </form>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               {systemError ? (
                 <motion.div
@@ -331,6 +397,7 @@ export default function LoginPage() {
                 </button>
               </div>
             </form>
+            )}
 
             <p className="mt-6 text-center text-xs leading-5 text-[#646464] sm:text-sm">
               Contact your school administrator if you need access or your parent phone number is not linked yet.

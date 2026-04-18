@@ -6,6 +6,8 @@
  * break the main flow.
  */
 
+import { logger } from './logger';
+
 interface SendSMSParams {
   phone: string;
   message: string;
@@ -113,7 +115,7 @@ async function sendViaHttpSmsProvider({
   endpoint: string;
 }): Promise<SMSResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
   try {
     const response = await fetch(endpoint, {
@@ -272,7 +274,7 @@ export async function sendSMS({ phone, message, senderName, smsUsername }: SendS
 
         return primaryResult;
       } catch (httpSmsError) {
-        console.error('[SMS] Nmolify/MNotify send failed:', httpSmsError);
+        logger.error('[SMS] Nmolify/MNotify send failed:', { error: httpSmsError });
         return {
           success: false,
           error: httpSmsError instanceof Error ? httpSmsError.message : 'Nmolify/MNotify SMS provider failed',
@@ -288,24 +290,20 @@ export async function sendSMS({ phone, message, senderName, smsUsername }: SendS
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[SMS SENT] Phone: ${formattedPhone}`);
-      if (formattedSenderName) {
-        console.log(`[SMS SENDER] ${formattedSenderName}`);
-      }
-      console.log(`[SMS MESSAGE] ${message}`);
+      logger.info('[SMS SENT]', { phone: formattedPhone, sender: formattedSenderName, message });
       return {
         success: true,
         messageId: `dev-${Date.now()}`,
       };
     }
 
-    console.error('[SMS] SMS service not configured. Add Nmolify/MNotify SMS API credentials.');
+    logger.error('[SMS] SMS service not configured. Add Nmolify/MNotify SMS API credentials.');
     return {
       success: false,
       error: 'SMS service not configured. Add Nmolify/MNotify SMS provider credentials in the environment.',
     };
   } catch (error) {
-    console.error('Error sending SMS:', error);
+    logger.error('Error sending SMS:', { error });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error sending SMS',
@@ -324,7 +322,7 @@ export async function sendWelcomeSMS(phone: string, schoolName: string): Promise
   try {
     return await sendSMS({ phone, message, senderName: schoolName });
   } catch (error) {
-    console.error('[SMS] Welcome SMS failed:', error);
+    logger.warn('[SMS] Welcome SMS failed:', { error });
     return { success: false, error: 'SMS send failed (non-critical)' };
   }
 }
@@ -344,7 +342,7 @@ export async function sendPasswordSMS({
   try {
     return await sendSMS({ phone, message, senderName: schoolName, smsUsername });
   } catch (error) {
-    console.error('[SMS] Password SMS failed:', error);
+    logger.warn('[SMS] Password SMS failed:', { error });
     return { success: false, error: 'SMS send failed (non-critical)' };
   }
 }

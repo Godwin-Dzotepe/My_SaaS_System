@@ -26,6 +26,7 @@ export const GET = withAuth(
         where: {
           id: childId,
           OR: parentAccessFilters,
+          deleted_at: null,
         },
         select: {
           id: true,

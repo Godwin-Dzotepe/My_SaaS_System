@@ -80,9 +80,9 @@ export default function GradingConfigurationPage() {
         setErrorMessage('');
 
         const response = await fetch('/api/auth/me');
-        const data = await response.json();
+        const data = await response.json().catch(() => null);
         if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch user session.');
+          throw new Error(data?.error || 'Failed to fetch user session.');
         }
 
         const sId = data.user?.school_id || '';

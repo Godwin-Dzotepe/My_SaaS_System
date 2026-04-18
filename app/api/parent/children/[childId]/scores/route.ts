@@ -18,16 +18,52 @@ export const GET = withAuth(
     }
 
     const { searchParams } = new URL(req.url);
-    const validation = querySchema.safeParse({
+    const useLatest = searchParams.get('latest') === 'true';
+
+    let academic_year: string;
+    let term: string;
+
+    if (useLatest) {
+      // Resolve to the active academic period for the child's school
+      try {
+        const child = await prisma.student.findFirst({
+          where: { id: childId, deleted_at: null },
+          select: { school_id: true },
+        });
+
+        if (!child) {
+          return NextResponse.json({ error: 'Child not found.' }, { status: 404 });
+        }
+
+        const activePeriod = await prisma.academicPeriod.findFirst({
+          where:   { school_id: child.school_id, is_active: true },
+          orderBy: { created_at: 'desc' },
+          select:  { academic_year: true, term: true },
+        });
+
+        if (!activePeriod) {
+          return NextResponse.json({ error: 'No active academic period found for this school.' }, { status: 404 });
+        }
+
+        academic_year = activePeriod.academic_year;
+        term          = activePeriod.term;
+      } catch (error) {
+        console.error(`Error resolving latest academic period for child ${childId}:`, error);
+        return NextResponse.json({ error: 'Failed to fetch scores.' }, { status: 500 });
+      }
+    } else {
+      const validation = querySchema.safeParse({
         academic_year: searchParams.get('academic_year'),
-        term: searchParams.get('term'),
-    });
+        term:          searchParams.get('term'),
+      });
 
-    if (!validation.success) {
+      if (!validation.success) {
         return NextResponse.json({ error: validation.error.issues }, { status: 400 });
-    }
+      }
 
-    const { academic_year, term } = validation.data;
+      academic_year = validation.data.academic_year;
+      term          = validation.data.term;
+    }
 
     try {
       const parentAccessFilters = [
@@ -47,6 +83,7 @@ export const GET = withAuth(
         where: {
           id: childId,
           OR: parentAccessFilters,
+          deleted_at: null,
         },
       });
 
@@ -91,10 +128,10 @@ export const GET = withAuth(
       });
 
       if (scores.length === 0) {
-          return NextResponse.json([]);
+          return NextResponse.json({ scores: [], academic_year, term });
       }
 
-      return NextResponse.json(scores);
+      return NextResponse.json({ scores, academic_year, term });
 
     } catch (error) {
       console.error(`Error fetching scores for child ${childId}:`, error);

@@ -40,20 +40,24 @@ function formatNotificationBody(body: string) {
 
 function getAnnouncementRoute(role: UserRole | null) {
   switch (role) {
-    case 'super_admin':
-      return '/dashboard/super-admin/announcements';
-    case 'school_admin':
-      return '/dashboard/school-admin/announcements';
-    case 'teacher':
-      return '/dashboard/teacher/announcements';
-    case 'parent':
-      return '/dashboard/parent/announcements';
-    case 'secretary':
-      return '/dashboard/secretary/announcements';
-    case 'finance_admin':
-      return '/dashboard/finance-admin';
-    default:
-      return '/dashboard';
+    case 'super_admin':    return '/dashboard/super-admin/announcements';
+    case 'school_admin':   return '/dashboard/school-admin/announcements';
+    case 'teacher':        return '/dashboard/teacher/announcements';
+    case 'parent':         return '/dashboard/parent/announcements';
+    case 'secretary':      return '/dashboard/secretary/announcements';
+    case 'finance_admin':  return '/dashboard/finance-admin';
+    default:               return '/dashboard';
+  }
+}
+
+function getSettingsRoute(role: UserRole | null) {
+  switch (role) {
+    case 'super_admin':    return '/dashboard/super-admin/settings';
+    case 'school_admin':   return '/dashboard/school-admin/settings';
+    case 'teacher':        return '/dashboard/teacher/settings';
+    case 'parent':         return '/dashboard/parent/settings';
+    case 'secretary':      return '/dashboard/secretary/settings';
+    default:               return '/dashboard';
   }
 }
 
@@ -83,6 +87,7 @@ export function Navbar() {
   const pollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const announcementsRoute = useMemo(() => getAnnouncementRoute(role), [role]);
+  const settingsRoute = useMemo(() => getSettingsRoute(role), [role]);
 
   const ensureAudioContext = useCallback(() => {
     if (typeof window === 'undefined') return null;
@@ -153,7 +158,7 @@ export function Navbar() {
         if (!('Notification' in window) || Notification.permission !== 'granted') return;
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          appServerKey: urlBase64ToUint8Array(String(keyData.publicKey)),
+          applicationServerKey: urlBase64ToUint8Array(String(keyData.publicKey)),
         });
       }
 
@@ -371,7 +376,7 @@ export function Navbar() {
               </Badge>
             ) : null}
           </Button>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={() => router.push(settingsRoute)} title="Account Settings">
             <Settings className="w-5 h-5" />
           </Button>
           <Button

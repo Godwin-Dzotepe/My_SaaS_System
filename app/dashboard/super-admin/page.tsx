@@ -10,7 +10,9 @@ import {
   Building2,
   ShieldCheck,
   MoreHorizontal,
-  Users
+  Users,
+  Trash2,
+  CheckCheck,
 } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -64,6 +66,11 @@ export default function SuperAdminDashboard() {
   const [stats, setStats] = React.useState<any>(null);
   const [recentSchools, setRecentSchools] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [aiBusy, setAiBusy] = React.useState(false);
+  const [aiMessage, setAiMessage] = React.useState('');
+  const [aiReports, setAiReports] = React.useState<any[]>([]);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [clearingAll, setClearingAll] = React.useState(false);
 
   React.useEffect(() => {
     async function fetchStats() {
@@ -95,6 +102,75 @@ export default function SuperAdminDashboard() {
     fetchStats();
   }, []);
 
+  React.useEffect(() => {
+    async function fetchAiReports() {
+      try {
+        const response = await fetch('/api/super-admin/ai/report');
+        if (!response.ok) return;
+
+        const data = await response.json();
+        setAiReports(data.reports || []);
+      } catch (error) {
+        console.error('Error fetching AI reports:', error);
+      }
+    }
+
+    fetchAiReports();
+  }, []);
+
+  const handleGenerateAiReport = async () => {
+    setAiBusy(true);
+    setAiMessage('');
+
+    try {
+      const response = await fetch('/api/super-admin/ai/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'due' }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setAiMessage(data?.error || 'Failed to generate AI report.');
+        return;
+      }
+
+      setAiMessage(data?.message || 'AI report run completed.');
+      setAiReports(data?.reports || []);
+    } catch (error) {
+      console.error('AI report error:', error);
+      setAiMessage('Unable to generate AI report right now.');
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const handleDeleteReport = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await fetch(`/api/super-admin/ai/report?id=${id}`, { method: 'DELETE' });
+      setAiReports(prev => prev.filter(r => r.id !== id));
+    } catch {
+      // ignore
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleClearAllReports = async () => {
+    setClearingAll(true);
+    try {
+      await fetch('/api/super-admin/ai/report', { method: 'DELETE' });
+      setAiReports([]);
+      setAiMessage('');
+    } catch {
+      // ignore
+    } finally {
+      setClearingAll(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -124,6 +200,13 @@ export default function SuperAdminDashboard() {
               <p className="text-gray-600">Manage the entire school ecosystem</p>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleGenerateAiReport}
+                disabled={aiBusy}
+              >
+                {aiBusy ? 'Running AI Reports...' : 'Run Due AI Reports'}
+              </Button>
               <Link href="/dashboard/super-admin/schools/new">
                 <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
                   <Plus className="w-4 h-4" />
@@ -223,6 +306,54 @@ export default function SuperAdminDashboard() {
             {/* System Status */}
             <motion.div variants={itemVariants} className="space-y-6">
               <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-lg font-semibold text-gray-900">AI Report Center</CardTitle>
+                  {aiReports.length > 0 && (
+                    <button
+                      onClick={handleClearAllReports}
+                      disabled={clearingAll}
+                      className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
+                      title="Mark all as read (clear all)"
+                    >
+                      <CheckCheck className="w-3.5 h-3.5" />
+                      {clearingAll ? 'Clearing...' : 'Mark all read'}
+                    </button>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-gray-600">
+                    Generates per-school prioritized reports for AI-enabled schools and sends Telegram updates.
+                  </p>
+                  {aiMessage ? (
+                    <p className="text-sm font-medium text-gray-800">{aiMessage}</p>
+                  ) : null}
+                  <div className="max-h-64 space-y-2 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+                    {aiReports.length > 0 ? (
+                      aiReports.slice(0, 8).map((report) => (
+                        <div key={report.id} className="group relative rounded-md border border-gray-200 bg-white p-2">
+                          <button
+                            onClick={() => handleDeleteReport(report.id)}
+                            disabled={deletingId === report.id}
+                            className="absolute right-1.5 top-1.5 rounded p-0.5 text-gray-300 opacity-0 transition group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                            title="Delete report"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                          <p className="font-semibold text-gray-900 pr-5">{report.schoolName}</p>
+                          <p className="text-[11px] text-gray-500">
+                            {new Date(report.createdAt).toLocaleString()} {report.sentToTelegram ? '• Telegram sent' : '• Telegram failed'}
+                          </p>
+                          <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-[11px] text-gray-700">{report.reportBody}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[11px] text-gray-500">No AI reports yet.</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-gray-900">System Status</CardTitle>
                 </CardHeader>
@@ -264,6 +395,7 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
       </motion.div>
+
     </div>
   );
 }

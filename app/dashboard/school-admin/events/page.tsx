@@ -73,10 +73,15 @@ export default function SchoolAdminEventsPage() {
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/events/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setEvents(events.filter(e => e.id !== id));
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete event');
       }
-    } catch {}
+      setEvents(events.filter(e => e.id !== id));
+    } catch (err) {
+      console.error('Error deleting event:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete event');
+    }
     finally {
       setEventToDelete(null);
     }

@@ -57,6 +57,7 @@ export const GET = withAuth(
         where: {
           OR: parentAccessFilters,
           status: 'active',
+          deleted_at: null,
         },
         select: {
           id: true,
@@ -240,7 +241,8 @@ export const GET = withAuth(
 
       const pendingFeesByChild = new Map<string, number>();
       for (const balance of feeBalances) {
-        const amountLeft = calculateAmountLeft(balance.schoolFee.amount, balance.amount_paid);
+        if (!balance.schoolFee || typeof balance.schoolFee.amount !== 'number') continue;
+        const amountLeft = calculateAmountLeft(balance.schoolFee.amount, balance.amount_paid || 0);
         pendingFeesByChild.set(balance.student_id, (pendingFeesByChild.get(balance.student_id) ?? 0) + amountLeft);
       }
 

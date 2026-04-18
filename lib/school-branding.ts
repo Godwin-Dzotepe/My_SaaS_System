@@ -103,6 +103,9 @@ export async function findSessionUserWithSchoolBranding(userId: string) {
             deactivationMessage: true,
           },
         },
+        totpSecret: {
+          select: { verified: true },
+        },
       },
     });
   } catch (error) {

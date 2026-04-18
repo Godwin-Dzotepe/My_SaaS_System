@@ -33,9 +33,15 @@ export default function NewStudentPage() {
     const fetchClasses = async () => {
       try {
         const res = await fetch('/api/classes');
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to fetch classes');
+        }
         if (Array.isArray(data)) setClasses(data);
-      } catch (err) {}
+      } catch (err) {
+        console.error('Error fetching classes:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch classes');
+      }
     };
     fetchClasses();
   }, []);
@@ -46,12 +52,15 @@ export default function NewStudentPage() {
     setError('');
     setSuccess('');
 
-    const meRes = await fetch('/api/auth/me');
-      const meData = await meRes.json();
-      if (!meData.user) return;
-      const user = meData.user;
-
     try {
+      const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+      const meData = await meRes.json().catch(() => null);
+      const user = meData?.user;
+
+      if (!meRes.ok || !user?.school_id) {
+        throw new Error('Unable to load your account. Please sign in again.');
+      }
+
       const res = await fetch('/api/students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

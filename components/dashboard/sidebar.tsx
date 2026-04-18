@@ -3,14 +3,19 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell } from 'lucide-react';
+import { Bell, ChevronDown, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SchoolMark } from '@/components/branding/school-mark';
+import { AiFloatChat } from '@/components/dashboard/ai-float-chat';
+import type { SidebarItem } from '@/lib/sidebar-configs';
 
-interface SidebarItem {
-  label: string;
-  href: string;
-  icon: React.ReactNode;
+function getSettingsHref(role: string) {
+  if (role === 'school-admin' || role === 'school_admin') return '/dashboard/school-admin/settings';
+  if (role === 'teacher')    return '/dashboard/teacher/settings';
+  if (role === 'parent')     return '/dashboard/parent/settings';
+  if (role === 'secretary')  return '/dashboard/secretary/settings';
+  if (role === 'super-admin' || role === 'super_admin') return '/dashboard/super-admin/settings';
+  return '#';
 }
 
 interface SidebarProps {
@@ -50,6 +55,24 @@ function formatTimeAgo(value: string) {
 export function Sidebar({ items, userRole, userName }: SidebarProps) {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
+  const [openGroups, setOpenGroups] = React.useState<Set<string>>(() => {
+    // Auto-open any group whose child matches the current path
+    const open = new Set<string>();
+    for (const item of items) {
+      if (item.children?.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))) {
+        open.add(item.label);
+      }
+    }
+    return open;
+  });
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.add(label);
+      return next;
+    });
+  };
   const [brandName, setBrandName] = React.useState('FutureLink');
   const [brandLogoUrl, setBrandLogoUrl] = React.useState<string | null>(null);
   const [notifications, setNotifications] = React.useState<SidebarNotification[]>([]);
@@ -57,6 +80,7 @@ export function Sidebar({ items, userRole, userName }: SidebarProps) {
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
   const [notificationError, setNotificationError] = React.useState('');
   const [notificationPermission, setNotificationPermission] = React.useState<'default' | 'denied' | 'granted' | 'unsupported'>('unsupported');
+  const [schoolAdminAiEnabled, setSchoolAdminAiEnabled] = React.useState(false);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -173,6 +197,41 @@ export function Sidebar({ items, userRole, userName }: SidebarProps) {
     };
   }, [fetchNotifications, pathname]);
 
+  React.useEffect(() => {
+    let mounted = true;
+
+    const fetchSchoolAdminAiStatus = async () => {
+      if (userRole !== 'school-admin') return;
+
+      try {
+        const response = await fetch('/api/dashboard/ai/overview', { cache: 'no-store' });
+        const data = await response.json().catch(() => null);
+
+        if (!mounted) return;
+        if (!response.ok) {
+          setSchoolAdminAiEnabled(false);
+          return;
+        }
+
+        setSchoolAdminAiEnabled(Boolean(data?.aiEnabled));
+      } catch (error) {
+        console.error('Failed to fetch school admin AI status:', error);
+        if (mounted) {
+          setSchoolAdminAiEnabled(false);
+        }
+      }
+    };
+
+    fetchSchoolAdminAiStatus();
+
+    return () => {
+      mounted = false;
+    };
+  }, [userRole, pathname]);
+
+  const showSuperAdminAi = userRole === 'super-admin';
+  const showSchoolAdminAi = userRole === 'school-admin' && schoolAdminAiEnabled;
+
   const markNotificationAsRead = async (notificationId: string) => {
     try {
       const response = await fetch(`/api/notifications/${notificationId}`, {
@@ -229,19 +288,75 @@ export function Sidebar({ items, userRole, userName }: SidebarProps) {
             </div>
           </div>
 
-          <nav className="custom-scrollbar flex-1 space-y-1 overflow-y-auto px-4 py-6">
-            {items.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+          <nav className="custom-scrollbar flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+            {items.map((item, idx) => {
+              // ── Category header ─────────────────────────────────────────
+              if (item.category) {
+                return (
+                  <p key={`cat-${idx}`} className="mt-4 mb-1 px-2 text-[10px] font-bold uppercase tracking-widest text-blue-300/70 first:mt-0">
+                    {item.label}
+                  </p>
+                );
+              }
+
+              // ── Dropdown group ───────────────────────────────────────────
+              if (item.children) {
+                const isGroupActive = item.children.some(c => pathname === c.href || pathname.startsWith(c.href + '/'));
+                const isOpen = openGroups.has(item.label) || isGroupActive;
+                return (
+                  <div key={item.label}>
+                    <button
+                      onClick={() => toggleGroup(item.label)}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                        isGroupActive
+                          ? 'bg-blue-600/80 text-white'
+                          : 'text-blue-100 hover:bg-blue-600/60 hover:text-white'
+                      )}
+                    >
+                      <span className="shrink-0">{item.icon}</span>
+                      <span className="flex-1 text-left">{item.label}</span>
+                      <ChevronDown className={cn('w-4 h-4 shrink-0 transition-transform duration-200', isOpen && 'rotate-180')} />
+                    </button>
+                    {isOpen && (
+                      <div className="ml-3 mt-0.5 border-l border-blue-500/40 pl-3 space-y-0.5">
+                        {item.children.map(child => {
+                          const isChildActive = pathname === child.href || pathname.startsWith(child.href + '/');
+                          return (
+                            <Link
+                              key={child.href}
+                              href={child.href}
+                              onClick={() => setIsMobileOpen(false)}
+                              className={cn(
+                                'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
+                                isChildActive
+                                  ? 'bg-blue-500 text-white font-semibold'
+                                  : 'text-blue-200 hover:bg-blue-600/50 hover:text-white'
+                              )}
+                            >
+                              {child.icon && <span className="shrink-0 opacity-80">{child.icon}</span>}
+                              {child.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // ── Regular link ─────────────────────────────────────────────
+              const isActive = pathname === item.href || (item.href ? pathname.startsWith(item.href + '/') : false);
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={item.href!}
                   onClick={() => setIsMobileOpen(false)}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                     isActive
                       ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-blue-100 hover:bg-blue-600 hover:text-white'
+                      : 'text-blue-100 hover:bg-blue-600/60 hover:text-white'
                   )}
                 >
                   {item.icon}
@@ -328,15 +443,20 @@ export function Sidebar({ items, userRole, userName }: SidebarProps) {
           </div>
 
           <div className="bg-blue-800/30 p-4">
-            <div className="flex items-center gap-3 rounded-xl border border-blue-600/60 bg-blue-900/15 px-3 py-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white font-bold text-blue-700 shadow-sm">
+            <Link
+              href={getSettingsHref(userRole)}
+              onClick={() => setIsMobileOpen(false)}
+              className="flex items-center gap-3 rounded-xl border border-blue-600/60 bg-blue-900/15 px-3 py-3 hover:bg-blue-700/40 transition-colors group"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white font-bold text-blue-700 shadow-sm shrink-0">
                 {userName.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-white">{userName}</p>
                 <p className="truncate text-xs capitalize text-blue-200">{userRole.replace('_', ' ')}</p>
               </div>
-            </div>
+              <Settings className="w-4 h-4 text-blue-300 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </Link>
           </div>
         </div>
       </aside>
@@ -345,6 +465,23 @@ export function Sidebar({ items, userRole, userName }: SidebarProps) {
         <div
           className="fixed inset-0 z-30 bg-black/50 lg:hidden"
           onClick={() => setIsMobileOpen(false)}
+        />
+      ) : null}
+
+      {showSuperAdminAi ? (
+        <AiFloatChat
+          title="Super Admin AI"
+          askEndpoint="/api/super-admin/ai/ask"
+          placeholder="Ask about schools, users, revenue, or system health"
+          allowTelegram
+        />
+      ) : null}
+
+      {showSchoolAdminAi ? (
+        <AiFloatChat
+          title="School AI Assistant"
+          askEndpoint="/api/dashboard/ai/ask"
+          placeholder="Ask about attendance, fees, or operations"
         />
       ) : null}
     </>

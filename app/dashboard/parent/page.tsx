@@ -27,7 +27,6 @@ import {
 import { CalendarWidget } from '@/components/dashboard/calendar-widget';
 import { PARENT_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { formatGhanaCedis } from '@/lib/currency';
-import { DashboardAlertBanner, useDashboardAlertBanner } from '@/components/dashboard/dashboard-alert-banner';
 
 interface DashboardChild {
   id: string;
@@ -81,30 +80,11 @@ const itemVariants = {
   }
 };
 
-function formatDashboardMessage(message: string) {
-  const trimmed = message.trim();
-  if (!trimmed) return 'No additional details.';
-
-  if (trimmed.startsWith('{"type":"RESULT_PUBLISHED"')) {
-    try {
-      const payload = JSON.parse(trimmed);
-      if (payload?.message) {
-        return String(payload.message);
-      }
-    } catch {}
-
-    return 'Results are now available. Open the child results page.';
-  }
-
-  return message;
-}
-
 export default function ParentDashboard() {
   const [userName, setUserName] = React.useState('Parent');
   const [dashboard, setDashboard] = React.useState<DashboardResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const { banner, dismissBanner } = useDashboardAlertBanner('parent');
 
   React.useEffect(() => {
     const fetchDashboard = async () => {
@@ -117,20 +97,22 @@ export default function ParentDashboard() {
           fetch('/api/parent/dashboard'),
         ]);
 
-        const meData = await meResponse.json();
-        if (meData.user?.name) {
+        const meData = await meResponse.json().catch(() => null);
+        if (meData?.user?.name) {
           setUserName(meData.user.name);
         }
 
-        const dashboardData = await dashboardResponse.json();
         if (!dashboardResponse.ok) {
           if (dashboardResponse.status === 403 || dashboardResponse.status === 401) {
             setError('This page is only available to signed-in parent accounts.');
             return;
           }
-          throw new Error(dashboardData.error || 'Failed to load dashboard data.');
+          const isJson = dashboardResponse.headers.get('content-type')?.includes('application/json');
+          const errData = isJson ? await dashboardResponse.json().catch(() => ({})) : {};
+          throw new Error(errData.error || `Failed to load dashboard data (${dashboardResponse.status}).`);
         }
 
+        const dashboardData = await dashboardResponse.json();
         setDashboard(dashboardData);
       } catch (fetchError) {
         console.error(fetchError);
@@ -146,8 +128,7 @@ export default function ParentDashboard() {
   return (
     <div className="flex min-h-screen bg-[#f0f1f3]">
       <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName={userName} />
-      <DashboardAlertBanner banner={banner} onClose={dismissBanner} />
-      
+
       <motion.div
         className="flex-1 lg:ml-64"
         initial="hidden"
@@ -250,28 +231,28 @@ export default function ParentDashboard() {
                     <Card className="border-none shadow-sm bg-white overflow-hidden hover:shadow-md transition-all group">
                       <div className="h-2 w-full bg-[#3f7afc]"></div>
                       <CardContent className="p-6">
-                        <div className="flex items-start justify-between mb-6 gap-3">
+                        <div className="flex items-start justify-between mb-6">
                           <div className="flex items-center gap-4">
                             <div className="w-16 h-16 rounded-lg bg-[#f0f1f3] flex items-center justify-center text-[#3f7afc] font-bold text-xl border border-gray-100 group-hover:bg-[#3f7afc] group-hover:text-white transition-colors">
                               {child.avatar}
                             </div>
                             <div>
-                              <h3 className="font-bold text-[#212529] text-xl break-words">{child.name}</h3>
+                              <h3 className="font-bold text-[#212529] text-xl">{child.name}</h3>
                               <div className="flex items-center gap-2 text-sm text-[#646464] mt-1">
                                 <School className="w-4 h-4 text-[#ffa001]" />
                                 {child.school}
                               </div>
                               <div className="flex gap-2 mt-2 flex-wrap">
-                                <Badge variant="secondary" className="bg-[#f0f1f3] text-[#212529] hover:bg-[#e0e1e3] border-none font-medium px-2.5 py-1">
+                                <Badge variant="secondary" className="bg-[#f0f1f3] text-[#212529] hover:bg-[#e0e1e3] border-none font-medium">
                                   {child.class}
                                 </Badge>
-                                <Badge variant="secondary" className="bg-[#e1f1ff] text-[#3f7afc] hover:bg-[#d1e1ff] border-none font-medium px-2.5 py-1">
+                                <Badge variant="secondary" className="bg-[#e1f1ff] text-[#3f7afc] hover:bg-[#d1e1ff] border-none font-medium">
                                   {child.rollNumber}
                                 </Badge>
                               </div>
                             </div>
                           </div>
-                          <Badge className={`shrink-0 ${child.pendingFees > 0 ? 'bg-[#ff0000] text-white' : 'bg-[#1d9d00] text-white'}`}>
+                          <Badge className={child.pendingFees > 0 ? 'bg-[#ff0000] text-white' : 'bg-[#1d9d00] text-white'}>
                             {child.pendingFees > 0 ? 'Fees Due' : 'Paid'}
                           </Badge>
                         </div>
@@ -298,13 +279,6 @@ export default function ParentDashboard() {
                         ) : (
                           <p className="text-xs text-[#646464] mb-6">No published results yet.</p>
                         )}
-
-                        <div className="mb-6 rounded-xl border border-[#e1f1ff] bg-[#f8fbff] px-4 py-3">
-                          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#3f7afc]">Attitude</p>
-                          <p className="mt-1 text-sm text-[#212529]">{child.attitude}</p>
-                          <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-[#3f7afc]">Teacher Advice</p>
-                          <p className="mt-1 text-sm text-[#212529]">{child.teacherAdvice}</p>
-                        </div>
 
                         <div className="flex flex-col sm:flex-row gap-3 mt-4">
                           <Link href={`/dashboard/parent/children/${child.id}/results`} className="flex-1">
@@ -337,7 +311,7 @@ export default function ParentDashboard() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <motion.div variants={itemVariants} className="lg:col-span-2">
                   <Card className="border-none shadow-sm bg-white h-full">
-                    <CardHeader className="flex flex-col gap-3 border-b border-gray-50 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                    <CardHeader className="flex flex-row items-center justify-between border-b border-gray-50 pb-4">
                       <CardTitle className="text-lg font-bold text-[#212529] flex items-center gap-2">
                         <Bell className="w-5 h-5 text-[#ffa001]" />
                         Recent Notifications
@@ -366,13 +340,13 @@ export default function ParentDashboard() {
                                notification.type === 'success' ? <TrendingUp className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
                             </div>
                             <div className="flex-1">
-                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="flex justify-between items-start gap-3">
                                 <h4 className="font-bold text-[#212529]">{notification.title}</h4>
                                 <span className="text-[10px] font-bold text-[#646464] bg-[#f0f1f3] px-2 py-1 rounded-full uppercase tracking-tighter">
                                   {notification.time}
                                 </span>
                               </div>
-                              <p className="text-sm text-[#646464] mt-1 leading-relaxed">{formatDashboardMessage(notification.message)}</p>
+                              <p className="text-sm text-[#646464] mt-1 leading-relaxed">{notification.message}</p>
                             </div>
                           </motion.div>
                         )) : (
@@ -385,7 +359,7 @@ export default function ParentDashboard() {
 
                 <motion.div variants={itemVariants}>
                   <CalendarWidget />
-                  
+
                   <Card className="border-none shadow-sm bg-gradient-to-br from-[#ffa001] to-[#ff9d01] text-white mt-6">
                     <CardHeader>
                       <CardTitle className="text-white text-sm flex items-center gap-2">

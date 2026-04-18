@@ -1,8 +1,11 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import { prisma } from './prisma';
+import { logger } from './logger';
 
 /**
  * Authentication utilities
- * 
+ *
  * SECURITY: JWT_SECRET must be set in environment variables.
  * This throws an error if the secret is missing to prevent
  * using insecure fallback secrets in production.
@@ -11,20 +14,20 @@ import jwt from 'jsonwebtoken';
 // Validate JWT_SECRET at startup - throw if missing
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
-  
+
   if (!secret) {
     throw new Error(
       'CRITICAL: JWT_SECRET environment variable is not set. ' +
       'Authentication cannot function without a secure secret key.'
     );
   }
-  
+
   if (secret.length < 32) {
     throw new Error(
       'CRITICAL: JWT_SECRET must be at least 32 characters for secure encryption.'
     );
   }
-  
+
   return secret;
 }
 
@@ -38,60 +41,67 @@ export interface UserPayload {
 
 /**
  * Generate a JWT token with minimal, secure payload
- * 
- * @param payload - User data to encode in token
- * @returns Signed JWT token
  */
 export function generateToken(payload: UserPayload): string {
   const secret = getJwtSecret();
-  
-  // Minimal payload - only include necessary claims
+
   const tokenPayload = {
     userId: payload.userId,
     role: payload.role,
     schoolId: payload.schoolId,
   };
-  
-  return jwt.sign(tokenPayload, secret, { 
+
+  return jwt.sign(tokenPayload, secret, {
     expiresIn: '7d',
-    algorithm: 'HS256'
+    algorithm: 'HS256',
   });
 }
 
 /**
- * Verify and decode a JWT token
- * 
- * @param token - JWT token to verify
- * @returns Decoded payload or null if invalid
+ * SHA-256 hash of the raw JWT string (internal use only — for blacklist lookups).
  */
-export function verifyToken(token: string): UserPayload | null {
+export function createTokenHash(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
+ * Verify and decode a JWT token.
+ * Also checks the token blacklist (populated on logout).
+ *
+ * @returns Decoded payload, or null if invalid/blacklisted.
+ */
+export async function verifyToken(token: string): Promise<UserPayload | null> {
   try {
     const secret = getJwtSecret();
     const decoded = jwt.verify(token, secret, {
-      algorithms: ['HS256']
+      algorithms: ['HS256'],
     }) as jwt.JwtPayload;
-    
+
+    // Blacklist check
+    const tokenHash = createTokenHash(token);
+    const blacklisted = await prisma.tokenBlacklist.findUnique({
+      where: { token_hash: tokenHash },
+      select: { id: true },
+    });
+    if (blacklisted) return null;
+
     return {
-      userId: decoded.userId,
-      email: decoded.email || '',
-      role: decoded.role,
+      userId:   decoded.userId,
+      email:    decoded.email || '',
+      role:     decoded.role,
       schoolId: decoded.schoolId,
-      phone: decoded.phone
+      phone:    decoded.phone,
     };
   } catch (error) {
-    console.error('[Auth] Token verification failed:', error instanceof Error ? error.message : 'Unknown error');
+    logger.warn('[Auth] Token verification failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
     return null;
   }
 }
 
 /**
  * Generate a minimal JWT payload for OTP login
- * This is used specifically for parent OTP authentication
- * 
- * @param userId - User ID
- * @param role - User role
- * @param schoolId - School ID for multi-tenant scoping
- * @returns Minimal payload object
  */
 export function generateOtpPayload(userId: string, role: string, schoolId: string): UserPayload {
   return {

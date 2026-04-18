@@ -33,6 +33,42 @@ interface ParentFeeStudent {
   };
 }
 
+function toTitleCase(value: string) {
+  return value
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function formatFeeType(value: string) {
+  const normalized = value.replace(/[_-]+/g, ' ').trim();
+  return normalized ? toTitleCase(normalized) : 'Unspecified Fee';
+}
+
+function formatFeeDescription(description: string | null, feeType: string) {
+  if (!description) return 'No description';
+
+  let normalized = description
+    // Remove template-like labels such as: [fee_type: ...], fee type: ..., fee_type: ...
+    .replace(/\[\s*fee[_\s-]*type\s*:[^\]]*\]/gi, '')
+    .replace(/fee[_\s-]*type\s*:[^,.;\n\r]*/gi, '')
+    // Remove stray square/curly braces left by malformed templates.
+    .replace(/[\[\]{}]/g, ' ')
+    // Normalize separators and excessive whitespace.
+    .replace(/[|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[-:|,;\s]+/, '')
+    .trim();
+
+  if (!normalized) return 'No description';
+  if (normalized.toLowerCase() === feeType.toLowerCase()) return 'No description';
+  if (/^fee[_\s-]*type$/i.test(normalized)) return 'No description';
+
+  return normalized;
+}
+
 export default function ParentFeesPage() {
   const [students, setStudents] = React.useState<ParentFeeStudent[]>([]);
   const [paymentDetails, setPaymentDetails] = React.useState<any>({});
@@ -131,25 +167,30 @@ export default function ParentFeesPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y">
-                            {student.balances.map((balance) => (
-                              <tr key={balance.id}>
-                                <td className="p-4">
-                                  {balance.fee_type}
-                                  <span className="mt-1 block text-xs text-gray-400">{balance.description || 'No description'}</span>
-                                </td>
-                                <td className="p-4">
-                                  {balance.term || 'No term'} ({balance.academic_year})
-                                </td>
-                                <td className="p-4 font-semibold">{formatGhanaCedis(balance.total_amount)}</td>
-                                <td className="p-4 text-emerald-700">{formatGhanaCedis(balance.amount_paid)}</td>
-                                <td className="p-4 text-amber-700">{formatGhanaCedis(balance.amount_left)}</td>
-                                <td className="p-4">
-                                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusTone(balance.status)}`}>
-                                    {balance.status}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
+                            {student.balances.map((balance) => {
+                              const feeTypeLabel = formatFeeType(balance.fee_type);
+                              const feeDescription = formatFeeDescription(balance.description, feeTypeLabel);
+
+                              return (
+                                <tr key={balance.id}>
+                                  <td className="p-4">
+                                    <p className="text-base font-bold leading-tight text-gray-900">{feeTypeLabel}</p>
+                                    <p className="mt-1 text-xs leading-relaxed text-gray-500">{feeDescription}</p>
+                                  </td>
+                                  <td className="p-4">
+                                    {balance.term || 'No term'} ({balance.academic_year})
+                                  </td>
+                                  <td className="p-4 font-semibold">{formatGhanaCedis(balance.total_amount)}</td>
+                                  <td className="p-4 text-emerald-700">{formatGhanaCedis(balance.amount_paid)}</td>
+                                  <td className="p-4 text-amber-700">{formatGhanaCedis(balance.amount_left)}</td>
+                                  <td className="p-4">
+                                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusTone(balance.status)}`}>
+                                      {balance.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                             {student.balances.length === 0 ? (
                               <tr>
                                 <td colSpan={6} className="p-4 text-center text-gray-500">

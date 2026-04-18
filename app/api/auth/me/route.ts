@@ -43,6 +43,7 @@ export const GET = withAuth(
         schoolName: dbUser.school?.school_name || null,
         schoolLogoUrl: dbUser.school?.logo_url || null,
         schoolSmsUsername: dbUser.school?.sms_username || null,
+        has2fa: !!(dbUser as any).totpSecret?.verified,
       };
 
       return NextResponse.json({ user: userWithDetails });

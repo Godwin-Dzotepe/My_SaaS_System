@@ -32,18 +32,26 @@ export default function TeacherAttendancePage() {
   React.useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(meData => {
       if (meData.user) setUserName(meData.user.name);
-    }).catch(e => {});
+        }).catch(e => {
+            console.error('Error fetching current user:', e);
+        });
 
     // Fetch classes assigned to this teacher
     const fetchMyClasses = async () => {
         try {
             const res = await fetch('/api/teacher/my-class');
-            const data = await res.json();
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+              throw new Error(data?.error || 'Failed to fetch assigned classes');
+            }
             // The API might return a single class or an array depending on your implementation
             const classArray = Array.isArray(data) ? data : (data.id ? [data] : []);
             setMyClasses(classArray);
             if (classArray.length > 0) setSelectedClassId(classArray[0].id);
-        } catch (err) {}
+        } catch (err) {
+            console.error('Error fetching assigned classes:', err);
+            setError(err instanceof Error ? err.message : 'Failed to fetch assigned classes');
+        }
     };
     fetchMyClasses();
   }, []);

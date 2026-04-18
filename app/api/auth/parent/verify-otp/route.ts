@@ -218,6 +218,17 @@ export async function POST(req: NextRequest) {
       path: '/',
     });
 
+    // 12. Set CSRF double-submit cookie (readable by JS, not httpOnly)
+    response.cookies.set({
+      name: 'csrf_token',
+      value: crypto.randomUUID(),
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'strict',
+      maxAge: TOKEN_EXPIRY_DAYS * 24 * 60 * 60,
+      path: '/',
+    });
+
     return response;
 
   } catch (error) {

@@ -30,9 +30,15 @@ export default function AttendancePage() {
     const fetchClasses = async () => {
       try {
         const res = await fetch('/api/classes');
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to fetch classes');
+        }
         if (Array.isArray(data)) setClasses(data);
-      } catch (err) {}
+      } catch (err) {
+        console.error('Error fetching classes:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch classes');
+      }
     };
     fetchClasses();
   }, []);

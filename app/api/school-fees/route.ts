@@ -2,48 +2,78 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { withAuth, validateSchool, authorize } from '@/lib/api-auth';
+import { logAudit } from '@/lib/audit';
+import { getClientIp } from '@/lib/rate-limiter';
 
-const DB_FEE_TYPES = ['TUITION', 'LUNCH', 'TRANSPORT', 'CLASS', 'OTHER'] as const;
 const FEE_TYPE_LABEL_PREFIX = '[fee_type:';
 
-function decodeFeeTypeForResponse<T extends { fee_type: string; description: string | null }>(fee: T) {
-  if (fee.fee_type !== 'OTHER' || !fee.description?.startsWith(FEE_TYPE_LABEL_PREFIX)) {
-    return fee;
-  }
+function parseLegacyFeeType(description: string | null) {
+  if (!description?.startsWith(FEE_TYPE_LABEL_PREFIX)) return null;
 
-  const closingBracketIndex = fee.description.indexOf(']');
-  if (closingBracketIndex < 0) return fee;
+  const closingBracketIndex = description.indexOf(']');
+  if (closingBracketIndex < 0) return null;
 
-  const customType = fee.description.slice(FEE_TYPE_LABEL_PREFIX.length, closingBracketIndex).trim();
-  const description = fee.description.slice(closingBracketIndex + 1).trim();
-  if (!customType) return fee;
+  const customType = description.slice(FEE_TYPE_LABEL_PREFIX.length, closingBracketIndex).trim();
+  if (!customType) return null;
 
+  const cleanedDescription = description.slice(closingBracketIndex + 1).trim();
   return {
-    ...fee,
     fee_type: customType,
-    description: description || null,
+    description: cleanedDescription || null,
   };
 }
 
-function encodeFeeTypeForStorage(feeTypeInput: string, descriptionInput?: string) {
-  const normalized = feeTypeInput.trim();
-  const upper = normalized.toUpperCase();
-  const description = (descriptionInput ?? '').trim();
+async function migrateLegacyFeeTypesForSchool(schoolId: string) {
+  const legacyRows = await prisma.schoolFee.findMany({
+    where: {
+      school_id: schoolId,
+      fee_type: 'OTHER',
+      description: {
+        startsWith: FEE_TYPE_LABEL_PREFIX,
+      },
+    },
+    select: {
+      id: true,
+      description: true,
+    },
+  });
 
-  if ((DB_FEE_TYPES as readonly string[]).includes(upper)) {
-    return {
-      fee_type: upper,
-      description: description || null,
-    };
+  for (const row of legacyRows) {
+    const parsed = parseLegacyFeeType(row.description);
+    if (!parsed) continue;
+
+    await prisma.schoolFee.update({
+      where: { id: row.id },
+      data: {
+        fee_type: parsed.fee_type as any,
+        description: parsed.description,
+      },
+    });
+  }
+}
+
+function decodeFeeTypeForResponse<T extends { fee_type: string; description: string | null }>(fee: T) {
+  if (fee.fee_type !== 'OTHER') {
+    return fee;
   }
 
-  const safeCustom = normalized.replace(/\]/g, '').slice(0, 80);
-  const storedDescription = `${FEE_TYPE_LABEL_PREFIX}${safeCustom}] ${description}`.trim();
+  const parsed = parseLegacyFeeType(fee.description);
+  if (!parsed) return fee;
 
   return {
-    fee_type: 'OTHER',
-    description: storedDescription || null,
+    ...fee,
+    fee_type: parsed.fee_type,
+    description: parsed.description,
   };
+}
+
+function normalizeFeeTypeForStorage(feeTypeInput: string) {
+  return feeTypeInput.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeDescriptionForStorage(descriptionInput?: string) {
+  const trimmed = (descriptionInput ?? '').trim();
+  return trimmed || null;
 }
 
 const schoolFeeSchema = z.object({
@@ -67,6 +97,8 @@ export const GET = withAuth(async ({ req, session }) => {
     if (academic_year) {
       where.academic_year = academic_year;
     }
+
+    await migrateLegacyFeeTypesForSchool(user.school_id!);
 
     const fees = await prisma.schoolFee.findMany({
       where,
@@ -96,19 +128,32 @@ export const POST = withAuth(async ({ req, session }) => {
     }
 
     const { class_id, fee_type, amount, academic_year, term, description, due_date } = validation.data;
-    const encoded = encodeFeeTypeForStorage(fee_type, description);
+    const normalizedFeeType = normalizeFeeTypeForStorage(fee_type);
+    const normalizedDescription = normalizeDescriptionForStorage(description);
 
     const fee = await prisma.schoolFee.create({
       data: {
         school_id: user.school_id,
         class_id: class_id ? class_id : null,
-        fee_type: encoded.fee_type,
+        // Cast to satisfy stale generated Prisma enum typings while DB stores free-text values.
+        fee_type: normalizedFeeType as any,
         amount,
         academic_year,
         term,
-        description: encoded.description,
+        description: normalizedDescription,
         due_date: due_date ? new Date(due_date) : null
       }
+    });
+
+    logAudit({
+      prismaClient: prisma,
+      schoolId:     user.school_id,
+      performedBy:  user.id,
+      actorRole:    user.role,
+      action:       'CREATE',
+      entityType:   'SchoolFee',
+      entityId:     fee.id,
+      changes:      { after: { fee_type: fee.fee_type, amount: fee.amount, academic_year: fee.academic_year, term: fee.term } },
     });
 
     return NextResponse.json(decodeFeeTypeForResponse(fee), { status: 201 });
@@ -125,14 +170,12 @@ export const POST = withAuth(async ({ req, session }) => {
       )
     ) {
       return NextResponse.json(
-        {
-          error: 'Database schema is outdated for custom fee types. Run Prisma migration and try again.',
-        },
+        { error: 'Database schema is outdated for custom fee types. Run Prisma migration and try again.' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ error: `Failed to create school fee: ${message}` }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create school fee' }, { status: 500 });
   }
 }, { roles: ['school_admin'] });
 
@@ -145,9 +188,12 @@ export async function PUT(req: NextRequest) {
 
     const body = await req.json();
     const { id, fee_type, amount, academic_year, term, description, due_date, is_active } = body;
-    const encoded =
+    const normalized =
       typeof fee_type === 'string' && fee_type.trim()
-        ? encodeFeeTypeForStorage(fee_type, typeof description === 'string' ? description : undefined)
+        ? {
+            fee_type: normalizeFeeTypeForStorage(fee_type),
+            description: normalizeDescriptionForStorage(typeof description === 'string' ? description : undefined),
+          }
         : null;
 
     if (!id) {
@@ -167,12 +213,12 @@ export async function PUT(req: NextRequest) {
     const fee = await prisma.schoolFee.update({
       where: { id },
       data: {
-        ...(encoded && { fee_type: encoded.fee_type }),
+        ...(normalized && { fee_type: normalized.fee_type as any }),
         ...(amount !== undefined && { amount }),
         ...(academic_year && { academic_year }),
         ...(term !== undefined && { term }),
-        ...(encoded
-          ? { description: encoded.description }
+        ...(normalized
+          ? { description: normalized.description }
           : description !== undefined
             ? { description }
             : {}),

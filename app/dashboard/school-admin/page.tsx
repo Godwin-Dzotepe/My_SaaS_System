@@ -63,6 +63,9 @@ export default function SchoolAdminDashboard() {
   const [recentStudents, setRecentStudents] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
+  const [aiLoading, setAiLoading] = React.useState(true);
+  const [aiEnabled, setAiEnabled] = React.useState(false);
+  const [aiError, setAiError] = React.useState('');
 
   const enrollmentData = [
     { name: 'Mon', students: stats.totalStudents * 0.15, teachers: stats.totalTeachers * 0.18 },
@@ -76,6 +79,33 @@ export default function SchoolAdminDashboard() {
 
   React.useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => { if (d.user && d.user.name) setUserName(d.user.name); }).catch(console.error);
+  }, []);
+
+  React.useEffect(() => {
+    const fetchAiOverview = async () => {
+      try {
+        setAiLoading(true);
+        const response = await fetch('/api/dashboard/ai/overview');
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          setAiEnabled(false);
+          setAiError(data?.error || 'Unable to load AI status.');
+          return;
+        }
+
+        setAiEnabled(Boolean(data?.aiEnabled));
+        setAiError('');
+      } catch (err) {
+        console.error('Error fetching AI overview:', err);
+        setAiEnabled(false);
+        setAiError('Unable to load AI status.');
+      } finally {
+        setAiLoading(false);
+      }
+    };
+
+    fetchAiOverview();
   }, []);
 
   React.useEffect(() => {
@@ -149,6 +179,15 @@ export default function SchoolAdminDashboard() {
               {error}
             </motion.div>
           )}
+
+          {!aiLoading && aiError ? (
+            <motion.div
+              variants={itemVariants}
+              className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg"
+            >
+              {aiError}
+            </motion.div>
+          ) : null}
 
           {/* Stats Grid */}
           <motion.div 
@@ -382,6 +421,7 @@ export default function SchoolAdminDashboard() {
           </div>
         </div>
       </motion.div>
+
     </div>
   );
 }

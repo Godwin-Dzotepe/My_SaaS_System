@@ -28,6 +28,7 @@ export const GET = withAuth(
         where: {
           id: childId,
           OR: parentAccessFilters,
+          deleted_at: null,
         },
         select: {
           id: true,
@@ -98,11 +99,7 @@ export const GET = withAuth(
           term: payload.term,
         }));
 
-      const availablePeriods = mergeAcademicPeriods(configuredPeriods, scorePeriods).filter((period) =>
-        publishedPeriods.some(
-          (published) => published.academic_year === period.academic_year && published.term === period.term
-        )
-      );
+      const availablePeriods = mergeAcademicPeriods(configuredPeriods, scorePeriods);
 
       const { searchParams } = new URL(req.url);
       const selectedAcademicYear = searchParams.get('academic_year') || availablePeriods[0]?.academic_year || '';

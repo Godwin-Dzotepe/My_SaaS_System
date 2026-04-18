@@ -13,7 +13,8 @@ import {
   GraduationCap,
   Plus,
   Power,
-  PowerOff
+  PowerOff,
+  Bot
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ import { MessageDialog } from '@/components/ui/message-dialog';
 
 export default function ManageSchools() {
   const [schools, setSchools] = React.useState<any[]>([]);
+  const [aiEnabledBySchool, setAiEnabledBySchool] = React.useState<Record<string, boolean>>({});
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState('');
   
@@ -31,6 +33,7 @@ export default function ManageSchools() {
   const [selectedSchool, setSelectedSchool] = React.useState<any>(null);
   const [deactivationMessage, setDeactivationMessage] = React.useState('');
   const [isUpdating, setIsUpdating] = React.useState(false);
+  const [aiUpdatingSchoolId, setAiUpdatingSchoolId] = React.useState<string | null>(null);
   const [dialogState, setDialogState] = React.useState<{ open: boolean; title: string; message: string; tone: 'success' | 'error' | 'warning' | 'info' }>({
     open: false,
     title: '',
@@ -61,6 +64,20 @@ export default function ManageSchools() {
 
       if (data.schools) {
         setSchools(data.schools);
+      }
+
+      try {
+        const aiResponse = await fetch('/api/super-admin/ai/schools');
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          const map: Record<string, boolean> = {};
+          for (const item of aiData.schools || []) {
+            map[item.schoolId] = Boolean(item.aiEnabled);
+          }
+          setAiEnabledBySchool(map);
+        }
+      } catch (error) {
+        console.error('Error fetching AI settings:', error);
       }
     } catch (error) {
       console.error('Error fetching schools:', error);
@@ -153,6 +170,53 @@ export default function ManageSchools() {
     }
   };
 
+  const handleToggleAi = async (school: any, newState: boolean) => {
+    setAiUpdatingSchoolId(school.id);
+    try {
+      const response = await fetch('/api/super-admin/ai/schools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schoolId: school.id,
+          aiEnabled: newState,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setDialogState({
+          open: true,
+          title: 'AI Toggle Failed',
+          message: data?.error || 'Unable to update AI state for this school.',
+          tone: 'error',
+        });
+        return;
+      }
+
+      setAiEnabledBySchool((current) => ({
+        ...current,
+        [school.id]: newState,
+      }));
+
+      setDialogState({
+        open: true,
+        title: 'AI Updated',
+        message: `AI ${newState ? 'enabled' : 'disabled'} for ${school.school_name}.`,
+        tone: 'success',
+      });
+    } catch (error) {
+      console.error('Error updating AI setting:', error);
+      setDialogState({
+        open: true,
+        title: 'AI Toggle Failed',
+        message: 'Unable to update AI state for this school.',
+        tone: 'error',
+      });
+    } finally {
+      setAiUpdatingSchoolId(null);
+    }
+  };
+
   const filteredSchools = schools.filter(school =>
     school.school_name.toLowerCase().includes(searchQuery.toLowerCase())        
   );
@@ -214,6 +278,24 @@ export default function ManageSchools() {
                         <Building2 className={`w-6 h-6 ${school.isActive ? 'text-blue-600' : 'text-red-500'}`} />
                       </div>
                       <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={aiUpdatingSchoolId === school.id}
+                          className={
+                            aiEnabledBySchool[school.id]
+                              ? 'text-green-700 border-green-200 hover:bg-green-50'
+                              : 'text-gray-700 border-gray-200 hover:bg-gray-50'
+                          }
+                          onClick={() => handleToggleAi(school, !aiEnabledBySchool[school.id])}
+                        >
+                          <Bot className="w-4 h-4 mr-1" />
+                          {aiUpdatingSchoolId === school.id
+                            ? 'Updating...'
+                            : aiEnabledBySchool[school.id]
+                              ? 'AI On'
+                              : 'AI Off'}
+                        </Button>
                         {school.isActive ? (
                           <Button 
                             variant="outline" 

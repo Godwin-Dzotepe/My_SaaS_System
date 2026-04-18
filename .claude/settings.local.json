@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.ts$|^d\")",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|XXX\\\\|HACK\" /c/xampp/htdocs/my-school-saas/app/ --include=*.ts*)",
+      "Bash(git -C \"/c/xampp/htdocs/my-school-saas\" log --oneline)",
+      "Bash(xargs grep:*)",
+      "Bash(sed 's/[^A-Z_].*//')",
+      "Bash(grep -o process.env.[A-Z_]* /c/xampp/htdocs/my-school-saas/lib/sms-service.ts /c/xampp/htdocs/my-school-saas/lib/cloudinary.ts)",
+      "Bash(ls /c/xampp/htdocs/my-school-saas/app/api/teachers/[id]/)",
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx next:*)",
+      "Bash(grep -rl \"from.*proxy\\\\|require.*proxy\\\\|import.*proxy\" C:/xampp/htdocs/my-school-saas/app C:/xampp/htdocs/my-school-saas/*.ts)",
+      "Bash(ls:*)",
+      "Bash(\"C:/xampp/mysql/bin/mysql.exe\" -h 127.0.0.1 -P 3308 -u root school_management_mysql -e \"\nCREATE TABLE IF NOT EXISTS \\\\`TimetableEntry\\\\` \\(\n  \\\\`id\\\\` VARCHAR\\(191\\) NOT NULL,\n  \\\\`school_id\\\\` VARCHAR\\(191\\) NOT NULL,\n  \\\\`class_id\\\\` VARCHAR\\(191\\) NOT NULL,\n  \\\\`subject_id\\\\` VARCHAR\\(191\\) NOT NULL,\n  \\\\`teacher_id\\\\` VARCHAR\\(191\\) NULL,\n  \\\\`day_of_week\\\\` INT NOT NULL,\n  \\\\`period_number\\\\` INT NOT NULL,\n  \\\\`start_time\\\\` VARCHAR\\(10\\) NOT NULL,\n  \\\\`end_time\\\\` VARCHAR\\(10\\) NOT NULL,\n  \\\\`room\\\\` VARCHAR\\(100\\) NULL,\n  \\\\`created_at\\\\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  \\\\`updated_at\\\\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY \\(\\\\`id\\\\`\\),\n  UNIQUE KEY \\\\`TimetableEntry_class_day_period_unique\\\\` \\(\\\\`class_id\\\\`, \\\\`day_of_week\\\\`, \\\\`period_number\\\\`\\),\n  INDEX \\\\`TimetableEntry_school_id_idx\\\\` \\(\\\\`school_id\\\\`\\),\n  INDEX \\\\`TimetableEntry_teacher_id_idx\\\\` \\(\\\\`teacher_id\\\\`\\),\n  CONSTRAINT \\\\`TimetableEntry_school_id_fkey\\\\` FOREIGN KEY \\(\\\\`school_id\\\\`\\) REFERENCES \\\\`School\\\\` \\(\\\\`id\\\\`\\),\n  CONSTRAINT \\\\`TimetableEntry_class_id_fkey\\\\` FOREIGN KEY \\(\\\\`class_id\\\\`\\) REFERENCES \\\\`Class\\\\` \\(\\\\`id\\\\`\\),\n  CONSTRAINT \\\\`TimetableEntry_subject_id_fkey\\\\` FOREIGN KEY \\(\\\\`subject_id\\\\`\\) REFERENCES \\\\`Subject\\\\` \\(\\\\`id\\\\`\\),\n  CONSTRAINT \\\\`TimetableEntry_teacher_id_fkey\\\\` FOREIGN KEY \\(\\\\`teacher_id\\\\`\\) REFERENCES \\\\`User\\\\` \\(\\\\`id\\\\`\\) ON DELETE SET NULL\n\\) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n\" 2>&1)",
+      "Bash(npx prisma:*)",
+      "Bash(\"C:/xampp/mysql/bin/mysql.exe\" -h 127.0.0.1 -P 3308 -u root school_management_mysql -e \"SHOW CREATE TABLE timetable_entries\\\\G\" 2>&1)",
+      "Bash(\"C:/xampp/mysql/bin/mysql.exe\" -h 127.0.0.1 -P 3308 -u root school_management_mysql -e \"SHOW TABLES LIKE '%timetable%';\" 2>&1)",
+      "Bash(\"C:/xampp/mysql/bin/mysql.exe\" -h 127.0.0.1 -P 3308 -u root school_management_mysql -e \"SHOW CREATE TABLE timetableentry\\\\G\" 2>&1)",
+      "Bash(curl -s -X POST http://localhost:3000/api/timetable -H \"Content-Type: application/json\" -H \"Cookie: auth_token=test\" -d '{\"\"class_id\"\":\"\"test\"\",\"\"subject_id\"\":\"\"test\"\",\"\"day_of_week\"\":1,\"\"period_number\"\":1,\"\"start_time\"\":\"\"07:30\"\",\"\"end_time\"\":\"\"08:15\"\"}')",
+      "Bash(find C:/xampp/htdocs/my-school-saas/app/api/subjects -name *.ts)",
+      "Bash(curl:*)",
+      "Bash(\"C:/xampp/mysql/bin/mysql.exe\" -h 127.0.0.1 -P 3308 -u root school_management_mysql -e \"SELECT id, name, role, school_id FROM user WHERE role='school_admin' LIMIT 1;\" 2>&1)",
+      "Bash(\"C:/xampp/mysql/bin/mysql.exe\" -h 127.0.0.1 -P 3308 -u root school_management_mysql -e \"SELECT id, class_name FROM class WHERE school_id='4b740919-feb6-4acc-a920-f2ddc9af944b' LIMIT 3;\" 2>&1)",
+      "Bash(\"C:/xampp/mysql/bin/mysql.exe\" -h 127.0.0.1 -P 3308 -u root school_management_mysql -e \"SELECT id, subject_name FROM subject WHERE school_id='4b740919-feb6-4acc-a920-f2ddc9af944b' LIMIT 3;\" 2>&1)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIwMzRiMzFkMy1kNDQ2LTRjNWQtYThiNi00MjcyZjI4ZGIyMmQiLCJyb2xlIjoic2Nob29sX2FkbWluIiwic2Nob29sSWQiOiI0Yjc0MDkxOS1mZWI2LTRhY2MtYTkyMC1mMmRkYzlhZjk0NGIiLCJpYXQiOjE3NzYzMjUyNjEsImV4cCI6MTc3NjMyODg2MX0.Gd6TfIRGmyaJKn6udoObUR7GwPh3s_AfLWPpQs5TSC8\")",
+      "Bash(__NEW_LINE_abd05eb7e30d9b4d__ echo:*)",
+      "Bash(\"C:/xampp/mysql/bin/mysql.exe\" -h 127.0.0.1 -P 3308 -u root school_management_mysql -e \"SHOW TABLES LIKE '%token%';\" 2>&1)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIwMzRiMzFkMy1kNDQ2LTRjNWQtYThiNi00MjcyZjI4ZGIyMmQiLCJyb2xlIjoic2Nob29sX2FkbWluIiwic2Nob29sSWQiOiI0Yjc0MDkxOS1mZWI2LTRhY2MtYTkyMC1mMmRkYzlhZjk0NGIiLCJpYXQiOjE3NzYzMjUyNjEsImV4cCI6MTc3NjMyODg2MX0.Gd6TfIRGmyaJKn6udoObUR7GwPh3s_AfLWPpQs5TSC8\" __NEW_LINE_97dfb8384c35d39a__ echo \"=== Test PATCH \\(no CSRF header, simulates browser without csrf_token cookie\\) ===\" curl -sv -X PATCH http://localhost:3000/api/account/profile -H \"Cookie: auth_token=$TOKEN\" -H \"Content-Type: application/json\" -d '{\"\"\"\"name\"\"\"\":\"\"\"\"Test\"\"\"\"}')",
+      "Bash(head -10 grep -n \"expiresIn\\\\|expires\\\\|7d\\\\|1d\\\\|JWT_EXPIRY\" \"C:/xampp/htdocs/my-school-saas/lib/auth.ts\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIwMzRiMzFkMy1kNDQ2LTRjNWQtYThiNi00MjcyZjI4ZGIyMmQiLCJyb2xlIjoic2Nob29sX2FkbWluIiwic2Nob29sSWQiOiI0Yjc0MDkxOS1mZWI2LTRhY2MtYTkyMC1mMmRkYzlhZjk0NGIiLCJpYXQiOjE3NzYzMjUyNjEsImV4cCI6MTc3NjMyODg2MX0.Gd6TfIRGmyaJKn6udoObUR7GwPh3s_AfLWPpQs5TSC8\" curl -s http://localhost:3000/api/auth/me -H \"Cookie: auth_token=$TOKEN\")",
+      "Bash(python -m json.tool)",
+      "Bash(__NEW_LINE_faaf709401853dcf__ echo:*)"
+    ]
+  }
+}

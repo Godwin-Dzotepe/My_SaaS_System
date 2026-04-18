@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
@@ -25,6 +25,7 @@ import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { downloadPdfFromElement } from '@/lib/client-pdf';
 
 interface TeacherDetail {
   id: string;
@@ -93,6 +94,7 @@ export default function TeacherDetailPage() {
   const [teacher, setTeacher] = useState<TeacherDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const pdfContentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const fetchTeacher = async () => {
@@ -161,8 +163,15 @@ export default function TeacherDetailPage() {
   const attendanceRate = teacher.teacherAttendance.length
     ? Math.round((presentDays / teacher.teacherAttendance.length) * 100)
     : 0;
-  const handleDownloadPdf = () => {
-    window.print();
+  const handleDownloadPdf = async () => {
+    try {
+      await downloadPdfFromElement(`teacher-profile-${teacher.name}`, pdfContentRef.current, {
+        ignoreSelectors: ['[data-pdf-ignore="true"]'],
+      });
+    } catch (error) {
+      console.error('[teacher.pdf] Failed to generate PDF:', error);
+      window.print();
+    }
   };
 
   return (
@@ -175,8 +184,8 @@ export default function TeacherDetailPage() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.25 }}
       >
-        <div className="teacher-pdf-content space-y-6 p-4 lg:p-8">
-          <div className="teacher-pdf-toolbar flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div ref={pdfContentRef} className="teacher-pdf-content space-y-6 p-4 lg:p-8">
+          <div data-pdf-ignore="true" className="teacher-pdf-toolbar flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard/school-admin/teachers">
                 <Button variant="ghost" size="sm" className="gap-2">

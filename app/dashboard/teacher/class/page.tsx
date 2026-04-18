@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import {
-  Phone
-} from 'lucide-react';
+import Link from 'next/link';
+import { Phone } from 'lucide-react';
 import { TEACHER_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -148,9 +147,9 @@ export default function MyClassPage() {
                               </Badge>
                             </td>
                             <td className="py-3 px-4 text-right">
-                              <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                              <Link href={`/dashboard/teacher/students/${student.id}`} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
                                 View Profile
-                              </button>
+                              </Link>
                             </td>
                           </motion.tr>
                         ))}
@@ -182,9 +181,9 @@ export default function MyClassPage() {
                               <Phone className="h-4 w-4 text-gray-400" />
                               <span className="break-all">{student.parent_phone}</span>
                             </div>
-                            <button className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                            <Link href={`/dashboard/teacher/students/${student.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-800">
                               View Profile
-                            </button>
+                            </Link>
                           </div>
                         </div>
                       </motion.div>

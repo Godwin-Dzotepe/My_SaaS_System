@@ -36,9 +36,15 @@ export default function SecretaryEventsPage() {
   const fetchEvents = async () => {
     try {
       const res = await fetch('/api/events');
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to fetch events');
+      }
       if (Array.isArray(data)) setEvents(data);
-    } catch (err) {} finally {
+    } catch (err) {
+      console.error('Error fetching events:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch events');
+    } finally {
       setLoading(false);
     }
   };
@@ -46,7 +52,9 @@ export default function SecretaryEventsPage() {
   React.useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(meData => {
       if (meData.user) setUserName(meData.user.name);
-    }).catch(e => {});
+    }).catch(e => {
+      console.error('Error fetching current user:', e);
+    });
     fetchEvents();
   }, []);
 
@@ -54,13 +62,16 @@ export default function SecretaryEventsPage() {
     e.preventDefault();
     setError('');
     setSuccess('');
-    
-    const meRes = await fetch('/api/auth/me');
-      const meData = await meRes.json();
-      if (!meData.user) return;
-      const user = meData.user;
 
     try {
+      const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+      const meData = await meRes.json().catch(() => null);
+      const user = meData?.user;
+
+      if (!meRes.ok || !user?.school_id) {
+        throw new Error('Unable to load your account. Please sign in again.');
+      }
+
       const res = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -82,10 +93,15 @@ export default function SecretaryEventsPage() {
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/events/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setEvents(events.filter(e => e.id !== id));
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete event');
       }
-    } catch (err) {}
+      setEvents(events.filter(e => e.id !== id));
+    } catch (err) {
+      console.error('Error deleting event:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete event');
+    }
     finally {
       setEventToDelete(null);
     }

@@ -58,6 +58,29 @@ model Payment {
 
 // --- Existing Models (with minor adjustments if necessary) ---
 
+model TimetableEntry {
+  id            String   @id @default(uuid())
+  school_id     String
+  school        School   @relation(fields: [school_id], references: [id])
+  class_id      String
+  class         Class    @relation(fields: [class_id], references: [id])
+  subject_id    String
+  subject       Subject  @relation(fields: [subject_id], references: [id])
+  teacher_id    String?
+  teacher       User?    @relation("TimetableTeacher", fields: [teacher_id], references: [id])
+  day_of_week   Int      // 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri
+  period_number Int
+  start_time    String   // "HH:MM"
+  end_time      String   // "HH:MM"
+  room          String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@unique([class_id, day_of_week, period_number])
+  @@index([school_id])
+  @@index([teacher_id])
+}
+
 model School {
   id          String   @id @default(uuid())
   school_name String
@@ -86,6 +109,7 @@ model School {
   payments            Payment[]
   teacherAttendance   TeacherAttendance[]
   promotionHistory    StudentPromotionHistory[]
+  timetableEntries    TimetableEntry[]
 }
 
 enum Role {
@@ -108,6 +132,7 @@ model Event {
   created_by  String
   creator     User     @relation("EventCreator", fields: [created_by], references: [id])
   created_at  DateTime @default(now())
+  updated_at  DateTime @default(now()) @updatedAt
 }
 
 model User {
@@ -130,9 +155,13 @@ model User {
   otpAttempts       Int      @default(0) // Track failed attempts (max 5)
   lastOtpSentAt     DateTime? // Rate limiting - track last OTP request
 
+  // Soft delete
+  deleted_at DateTime?
+
   // Indexes for performance
   @@index([phone, role])
   @@index([school_id, phone])
+  @@index([deleted_at])
 
   // Relations for specific roles
   classes        Class[] // A teacher can manage multiple classes (or one)
@@ -148,6 +177,8 @@ model User {
   subjects Subject[] @relation("TeacherSubjects")
   teacherAttendance TeacherAttendance[] @relation("TeacherAttendance")
   performedPromotions StudentPromotionHistory[] @relation("PromotionPerformedBy")
+  timetableEntries TimetableEntry[] @relation("TimetableTeacher")
+  totpSecret     UserTotpSecret?
 
   created_at DateTime @default(now())
 }
@@ -166,6 +197,7 @@ model Class {
   schoolFees SchoolFee[]
   promotionsFrom StudentPromotionHistory[] @relation("PromotionFromClass")
   promotionsTo   StudentPromotionHistory[] @relation("PromotionToClass")
+  timetableEntries TimetableEntry[]
 }
 
 enum StudentStatus {
@@ -216,6 +248,7 @@ model Student {
   parent_relation String? @default("Guardian")
 
   status     StudentStatus @default(active)
+  deleted_at DateTime?
   created_at DateTime      @default(now())
 
   scores            Score[]
@@ -226,6 +259,7 @@ model Student {
   promotionHistory  StudentPromotionHistory[]
 
   @@unique([school_id, student_number])
+  @@index([school_id, deleted_at])
 }
 
 model Subject {
@@ -236,6 +270,7 @@ model Subject {
 
   scores   Score[]
   teachers User[]  @relation("TeacherSubjects")
+  timetableEntries TimetableEntry[]
 }
 
 model Score {
@@ -418,6 +453,8 @@ model TeacherAttendance {
   school     School           @relation(fields: [school_id], references: [id])
   date       DateTime         @default(now())
   status     AttendanceStatus
+  created_at DateTime         @default(now())
+  updated_at DateTime         @default(now()) @updatedAt
 
   @@unique([teacher_id, date])
 }
@@ -485,6 +522,45 @@ model AppNotification {
   updated_at       DateTime        @updatedAt
 
   @@index([user_id, is_read, created_at])
+}
+
+// JWT revocation — tokens are hashed and stored here on logout
+model TokenBlacklist {
+  id         String   @id @default(uuid())
+  token_hash String   @unique
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  @@index([expires_at])
+}
+
+// TOTP 2FA secrets for school_admin / finance_admin
+model UserTotpSecret {
+  id         String   @id @default(uuid())
+  user_id    String   @unique
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  secret     String   // AES-256-GCM encrypted base32 secret
+  verified   Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+// General-purpose audit log
+model AuditLog {
+  id           String   @id @default(uuid())
+  school_id    String?
+  performed_by String   // User ID or "system"
+  actor_role   String?
+  action       String   // CREATE | UPDATE | DELETE
+  entity_type  String   // Student | User | SchoolFee | etc.
+  entity_id    String
+  changes      Json?    // { before: {...}, after: {...} }
+  ip_address   String?
+  created_at   DateTime @default(now())
+
+  @@index([school_id, entity_type, created_at])
+  @@index([entity_id, entity_type])
+  @@index([performed_by, created_at])
 }
 
 

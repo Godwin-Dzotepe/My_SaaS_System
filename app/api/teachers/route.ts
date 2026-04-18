@@ -79,7 +79,7 @@ async function saveTeacherProfileImage(file: File) {
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await authorize(req, ['school_admin', 'super_admin']);
+    const auth = await authorize(req, ['school_admin', 'super_admin', 'secretary']);
     if (auth instanceof NextResponse) return auth;
     const { user } = auth;
 
@@ -87,35 +87,43 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'User is not associated with a school' }, { status: 400 });
     }
 
-    const teachers = await prisma.user.findMany({
-      where: {
-        role: 'teacher',
-        school_id: user.school_id || undefined,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        classes: {
-          select: {
-            id: true,
-            class_name: true,
-          }
-        },
-        subjects: {
-          select: {
-            id: true,
-            subject_name: true
-          }
-        },
-        created_at: true,
-      },
-      orderBy: {
-        created_at: 'desc',
-      },
-    });
+    const { searchParams } = req.nextUrl;
+    const search    = searchParams.get('search')?.trim() || undefined;
+    const pageStr   = searchParams.get('page');
+    const sizeStr   = searchParams.get('pageSize');
+    const paginated = !!pageStr;
+    const page      = Math.max(1, parseInt(pageStr ?? '1', 10) || 1);
+    const pageSize  = Math.min(100, Math.max(1, parseInt(sizeStr ?? '50', 10) || 50));
 
+    const where: Record<string, unknown> = {
+      role:       'teacher',
+      school_id:  user.school_id || undefined,
+      deleted_at: null,
+    };
+
+    if (search) {
+      where.OR = [
+        { name:  { contains: search } },
+        { phone: { contains: search } },
+        { email: { contains: search } },
+      ];
+    }
+
+    const select = {
+      id: true, name: true, email: true, phone: true, created_at: true,
+      classes:  { select: { id: true, class_name: true } },
+      subjects: { select: { id: true, subject_name: true } },
+    };
+
+    if (paginated) {
+      const [teachers, total] = await Promise.all([
+        prisma.user.findMany({ where, select, orderBy: { created_at: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+        prisma.user.count({ where }),
+      ]);
+      return NextResponse.json({ teachers, total, page, pageSize });
+    }
+
+    const teachers = await prisma.user.findMany({ where, select, orderBy: { created_at: 'desc' } });
     return NextResponse.json(teachers);
   } catch (error) {
     console.error('Error fetching teachers:', error);

@@ -1,211 +1,208 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import {
-  Settings,
-  Save,
-  User
-} from 'lucide-react';
 import { Sidebar } from '@/components/dashboard/sidebar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { TEACHER_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
+import { User, Lock, BookOpen, Loader2, Save, Eye, EyeOff, GraduationCap } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 
+const TABS = [
+  { id: 'profile',    label: 'Profile',           icon: User },
+  { id: 'password',   label: 'Password',           icon: Lock },
+  { id: 'assignment', label: 'My Class & Subjects', icon: BookOpen },
+];
 
+export default function TeacherSettingsPage() {
+  const { success: toastSuccess, error: toastError } = useToast();
+  const [tab, setTab] = React.useState('profile');
+  const [loading, setLoading] = React.useState(true);
+  const [userName, setUserName] = React.useState('Teacher');
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1
-    }
-  }
-};
+  // Profile
+  const [profile, setProfile] = React.useState({ name: '', email: '', phone: '' });
+  const [savingProfile, setSavingProfile] = React.useState(false);
 
-const itemVariants = {
-  hidden: { y: 20, opacity: 0 },
-  visible: {
-    y: 0,
-    opacity: 1
-  }
-};
+  // Password
+  const [pwd, setPwd] = React.useState({ current: '', next: '', confirm: '' });
+  const [showPwd, setShowPwd] = React.useState({ current: false, next: false, confirm: false });
+  const [savingPwd, setSavingPwd] = React.useState(false);
 
-interface Profile {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string;
-}
+  // Assignment (read-only)
+  const [myClass, setMyClass] = React.useState<{ class_name: string } | null>(null);
+  const [subjects, setSubjects] = React.useState<{ subject_name: string }[]>([]);
+  const [joinedAt, setJoinedAt] = React.useState('');
 
-export default function SettingsPage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-
-  useEffect(() => {
-    async function fetchProfile() {
-      try {
-        const response = await fetch('/api/teacher/profile');
-        
-        let data;
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-          data = await response.json();
-        } else {
-          throw new Error(`Server returned non-JSON response: ${response.status}`);
-        }
-
-        if (!response.ok) {
-          throw new Error(data.error || `Error ${response.status}`);
-        }
-        setProfile(data);
-        setName(data.name);
-        setEmail(data.email || '');
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+  React.useEffect(() => {
+    Promise.all([
+      fetch('/api/account/profile').then(r => r.json()).catch(() => null),
+      fetch('/api/teacher/assignment').then(r => r.json()).catch(() => null),
+    ]).then(([acc, assignment]) => {
+      if (acc) {
+        setUserName(acc.name || 'Teacher');
+        setProfile({ name: acc.name || '', email: acc.email || '', phone: acc.phone || '' });
+        if (acc.created_at) setJoinedAt(new Date(acc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }));
       }
-    }
-
-    fetchProfile();
+      if (assignment) {
+        if (assignment.assignedClass) setMyClass(assignment.assignedClass);
+        if (Array.isArray(assignment.subjects)) setSubjects(assignment.subjects);
+        if (assignment.joinedAt && !acc?.created_at) setJoinedAt(new Date(assignment.joinedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }));
+      }
+    }).finally(() => setLoading(false));
   }, []);
 
-  const updateProfile = async (e: React.FormEvent) => {
+  const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setMessage('');
-    setError('');
-
+    setSavingProfile(true);
     try {
-      const response = await fetch('/api/teacher/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          email
-        })
+      const res = await fetch('/api/account/profile', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update profile');
-      }
-
-      setMessage('Profile updated successfully!');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      setUserName(profile.name);
+      toastSuccess('Profile updated');
+    } catch (e: any) { toastError(e.message); }
+    finally { setSavingProfile(false); }
   };
+
+  const savePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwd.next !== pwd.confirm) { toastError('Passwords do not match'); return; }
+    if (pwd.next.length < 6) { toastError('New password must be at least 6 characters'); return; }
+    setSavingPwd(true);
+    try {
+      const res = await fetch('/api/account/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: pwd.current, newPassword: pwd.next }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      setPwd({ current: '', next: '', confirm: '' });
+      toastSuccess('Password changed successfully');
+    } catch (e: any) { toastError(e.message); }
+    finally { setSavingPwd(false); }
+  };
+
+  const inputCls = 'w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white';
+  const saveBtnCls = 'flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-60';
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName={name || 'Teacher'} />
-      
-      <motion.div 
-        className="flex-1 lg:ml-64"
-        initial="hidden"
-        animate="visible"
-        variants={containerVariants}
-      >
-        <div className="p-4 lg:p-8 space-y-6">
-          <motion.div 
-            variants={itemVariants}
-            className="flex flex-col md:flex-row md:items-center justify-between gap-4"
-          >
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-              <p className="text-gray-600">Manage your profile and account settings</p>
-            </div>
-          </motion.div>
+      <Sidebar items={TEACHER_SIDEBAR_ITEMS} userRole="teacher" userName={userName} />
 
-          {message && (
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
-              {message}
-            </div>
-          )}
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-              {error}
-            </div>
-          )}
-
-          {loading ? (
-            <div className="text-center py-10">Loading profile...</div>
-          ) : (
-            <div className="max-w-2xl">
-              <motion.div variants={itemVariants}>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Profile Information</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={updateProfile} className="space-y-6">
-                      <div className="flex flex-col items-center gap-4 p-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                        <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center">
-                          <User className="w-12 h-12 text-blue-600" />
-                        </div>
-                        <Button variant="outline" size="sm" type="button">
-                          Change Profile Photo
-                        </Button>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-700">Full Name</label>
-                          <Input 
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-700">Phone (Login ID)</label>
-                          <Input 
-                            value={profile?.phone}
-                            disabled
-                            className="bg-gray-100 cursor-not-allowed"
-                          />
-                          <p className="text-xs text-gray-500">Phone number cannot be changed as it is your login ID.</p>
-                        </div>
-                        <div className="space-y-2 md:col-span-2">
-                          <label className="text-sm font-medium text-gray-700">Email Address</label>
-                          <Input 
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="your@email.com"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="pt-4 flex justify-end">
-                        <Button type="submit" disabled={saving} className="gap-2">
-                          {saving ? 'Saving...' : (
-                            <>
-                              <Save className="w-4 h-4" />
-                              Save Profile
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </form>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </div>
-          )}
+      <div className="flex-1 lg:ml-64 p-4 lg:p-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Account Settings</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Manage your profile and password</p>
         </div>
-      </motion.div>
+
+        {loading ? (
+          <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Tab sidebar */}
+            <div className="flex lg:flex-col gap-1 lg:w-52 shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-2 h-fit">
+              {TABS.map(t => {
+                const Icon = t.icon;
+                return (
+                  <button key={t.id} onClick={() => setTab(t.id)}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium w-full text-left transition-all ${tab === t.id ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}>
+                    <Icon className="w-4 h-4 shrink-0" />{t.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Panel */}
+            <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+
+              {/* ── PROFILE ── */}
+              {tab === 'profile' && (
+                <form onSubmit={saveProfile} className="space-y-5 max-w-lg">
+                  <h2 className="text-base font-semibold text-gray-900">Personal Information</h2>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <input className={inputCls} value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                    <input type="email" className={inputCls} value={profile.email} onChange={e => setProfile(p => ({ ...p, email: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <input type="tel" className={inputCls} value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} />
+                  </div>
+                  {joinedAt && <p className="text-xs text-gray-400">Member since {joinedAt}</p>}
+                  <button type="submit" disabled={savingProfile} className={saveBtnCls}>
+                    {savingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Profile
+                  </button>
+                </form>
+              )}
+
+              {/* ── PASSWORD ── */}
+              {tab === 'password' && (
+                <form onSubmit={savePassword} className="space-y-5 max-w-lg">
+                  <h2 className="text-base font-semibold text-gray-900">Change Password</h2>
+                  {(['current', 'next', 'confirm'] as const).map((k, i) => (
+                    <div key={k}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {['Current Password', 'New Password', 'Confirm New Password'][i]}
+                      </label>
+                      <div className="relative">
+                        <input type={showPwd[k] ? 'text' : 'password'} className={inputCls + ' pr-10'}
+                          value={pwd[k]} onChange={e => setPwd(p => ({ ...p, [k]: e.target.value }))} required />
+                        <button type="button" onClick={() => setShowPwd(s => ({ ...s, [k]: !s[k] }))}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                          {showPwd[k] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button type="submit" disabled={savingPwd} className={saveBtnCls}>
+                    {savingPwd ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />} Update Password
+                  </button>
+                </form>
+              )}
+
+              {/* ── ASSIGNMENT ── */}
+              {tab === 'assignment' && (
+                <div className="space-y-6 max-w-lg">
+                  <h2 className="text-base font-semibold text-gray-900">My Class &amp; Subjects</h2>
+                  <p className="text-sm text-gray-500">Assigned by your school admin. Contact them to make changes.</p>
+
+                  <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                        <GraduationCap className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-medium">Assigned Class</p>
+                        <p className="text-sm font-semibold text-gray-800">
+                          {myClass ? myClass.class_name : <span className="font-normal text-gray-400">No class assigned yet</span>}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Subjects</p>
+                    {subjects.length === 0 ? (
+                      <p className="text-sm text-gray-400">No subjects assigned yet.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {subjects.map((s, i) => (
+                          <span key={i} className="flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-100 px-3 py-1 text-sm text-blue-700 font-medium">
+                            <BookOpen className="w-3.5 h-3.5" />{s.subject_name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
