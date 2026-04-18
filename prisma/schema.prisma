@@ -123,7 +123,7 @@ enum Role {
 model Event {
   id          String   @id @default(uuid())
   title       String
-  description String?
+  description String?  @db.Text
   start_date  DateTime
   end_date    DateTime
   school_id   String
@@ -234,7 +234,7 @@ model Student {
   guardian_digital_address String?
   emergency_contact_name String?
   emergency_contact_phone String?
-  medical_notes  String?
+  medical_notes  String?  @db.Text
   profile_image  String?
   class_id       String
   class          Class   @relation(fields: [class_id], references: [id])
@@ -331,7 +331,7 @@ model Announcement {
   id         String   @id @default(uuid())
   school_id  String?
   school     School?  @relation(fields: [school_id], references: [id])
-  message    String
+  message    String   @db.Text
   created_by String
   creator    User     @relation(fields: [created_by], references: [id])
   created_at DateTime @default(now())
@@ -494,7 +494,7 @@ model AppMessage {
   sender_role      Role
   recipient_role   Role
   title            String
-  body             String
+  body             String          @db.Text
   school_name      String?
   notifications    AppNotification[]
   is_edited        Boolean         @default(false)
@@ -512,7 +512,7 @@ model AppNotification {
   message_id       String?
   message          AppMessage?     @relation(fields: [message_id], references: [id])
   title            String
-  body             String
+  body             String          @db.Text
   source_role      Role?
   source_name      String?
   school_name      String?
