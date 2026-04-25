@@ -5,7 +5,7 @@ import { Sidebar } from '@/components/dashboard/sidebar';
 import { ADMIN_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import {
   User, Lock, School, CalendarDays, ShieldCheck, ShieldOff,
-  Loader2, CheckCircle2, XCircle, Save, Eye, EyeOff,
+  Loader2, CheckCircle2, XCircle, Save, Eye, EyeOff, Globe,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useToast } from '@/components/ui/toast';
@@ -16,6 +16,7 @@ const TABS = [
   { id: 'school',   label: 'School Info',    icon: School },
   { id: 'term',     label: 'Academic Term',  icon: CalendarDays },
   { id: 'security', label: 'Security (2FA)', icon: ShieldCheck },
+  { id: 'domain',   label: 'Custom Domain',  icon: Globe },
 ];
 
 export default function SchoolAdminSettingsPage() {
@@ -42,6 +43,11 @@ export default function SchoolAdminSettingsPage() {
   const [termForm, setTermForm] = React.useState({ academic_year: '', term: 'Term 1' });
   const [savingTerm, setSavingTerm] = React.useState(false);
 
+  // Domain
+  const [domainInfo, setDomainInfo] = React.useState<{ subdomain: string | null; subdomain_request: string | null; subdomain_status: string }>({ subdomain: null, subdomain_request: null, subdomain_status: 'none' });
+  const [domainSlug, setDomainSlug] = React.useState('');
+  const [savingDomain, setSavingDomain] = React.useState(false);
+
   // 2FA
   const [has2fa, setHas2fa] = React.useState<boolean | null>(null);
   const [totpStatus, setTotpStatus] = React.useState<'idle' | 'loading' | 'setup' | 'success' | 'error'>('idle');
@@ -58,7 +64,8 @@ export default function SchoolAdminSettingsPage() {
       fetch('/api/account/profile').then(r => r.json()).catch(() => null),
       fetch('/api/school/info').then(r => r.json()).catch(() => null),
       fetch('/api/academic-periods').then(r => r.json()).catch(() => null),
-    ]).then(([me, prof, si, ap]) => {
+      fetch('/api/school/subdomain-request').then(r => r.json()).catch(() => null),
+    ]).then(([me, prof, si, ap, domain]) => {
       // User identity (name, 2fa status)
       if (me?.user) {
         setUserName(me.user.name || '');
@@ -78,6 +85,10 @@ export default function SchoolAdminSettingsPage() {
       setTerms(configured);
       const active = configured.find((t: { is_active: boolean; academic_year: string; term: string }) => t.is_active);
       if (active) setTermForm({ academic_year: active.academic_year, term: active.term });
+      if (domain) {
+        setDomainInfo(domain);
+        setDomainSlug(domain.subdomain_request || domain.subdomain || '');
+      }
     }).finally(() => setLoading(false));
   }, []);
 
@@ -185,6 +196,21 @@ export default function SchoolAdminSettingsPage() {
       setHas2fa(false); setTotpStatus('idle'); setShowDisable(false); setDisableCode('');
       setTotpMsg('Two-factor authentication disabled.');
     } catch (e: any) { setTotpMsg(e.message); setTotpStatus('idle'); }
+  };
+
+  const saveDomain = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingDomain(true);
+    try {
+      const res = await fetch('/api/school/subdomain-request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: domainSlug }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      toastSuccess('Domain request submitted! Awaiting super admin approval.');
+      setDomainInfo(d => ({ ...d, subdomain_request: domainSlug, subdomain_status: 'pending' }));
+    } catch (e: any) { toastError(e.message); }
+    finally { setSavingDomain(false); }
   };
 
   const inputCls = 'w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white';
@@ -342,6 +368,68 @@ export default function SchoolAdminSettingsPage() {
                         ))}
                       </div>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── CUSTOM DOMAIN ── */}
+              {tab === 'domain' && (
+                <div className="max-w-lg space-y-5">
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900">Custom Domain</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Request a subdomain so your school has its own branded URL.</p>
+                  </div>
+
+                  {domainInfo.subdomain_status === 'approved' && domainInfo.subdomain && (
+                    <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-800">Domain Approved</p>
+                        <p className="text-sm text-emerald-700 font-mono">{domainInfo.subdomain}.{process.env.NEXT_PUBLIC_BASE_DOMAIN || 'kobby.dev'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {domainInfo.subdomain_status === 'pending' && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                      <p className="text-sm font-semibold text-amber-800">Request Pending</p>
+                      <p className="text-sm text-amber-700">Your request for <span className="font-mono font-semibold">{domainInfo.subdomain_request}</span> is awaiting super admin approval.</p>
+                    </div>
+                  )}
+
+                  {domainInfo.subdomain_status === 'rejected' && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      Your last request was rejected. You can submit a new one below.
+                    </div>
+                  )}
+
+                  {domainInfo.subdomain_status !== 'approved' && (
+                    <form onSubmit={saveDomain} className="space-y-4 border-t border-gray-100 pt-5">
+                      <h3 className="text-sm font-semibold text-gray-700">Request a Subdomain</h3>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Your school name / slug</label>
+                        <div className="flex items-center rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
+                          <input
+                            type="text"
+                            value={domainSlug}
+                            onChange={e => setDomainSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                            placeholder="gracelife"
+                            className="flex-1 px-3 py-2.5 text-sm outline-none bg-white"
+                            required
+                            minLength={2}
+                            maxLength={32}
+                          />
+                          <span className="px-3 py-2.5 text-sm text-gray-400 bg-gray-50 border-l border-gray-200 whitespace-nowrap">
+                            .{process.env.NEXT_PUBLIC_BASE_DOMAIN || 'kobby.dev'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">Lowercase letters, numbers and hyphens only.</p>
+                      </div>
+                      <button type="submit" disabled={savingDomain || !domainSlug} className={saveBtnCls}>
+                        {savingDomain ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                        {domainInfo.subdomain_status === 'pending' ? 'Update Request' : 'Request Domain'}
+                      </button>
+                    </form>
                   )}
                 </div>
               )}

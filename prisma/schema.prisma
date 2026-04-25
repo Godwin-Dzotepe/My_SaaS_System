@@ -89,6 +89,10 @@ model School {
   isActive    Boolean  @default(true)
   deactivationMessage String?
 
+  subdomain           String?  @unique
+  subdomain_request   String?
+  subdomain_status    String   @default("none")
+
   phone       String
   created_at  DateTime @default(now())
 

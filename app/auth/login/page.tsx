@@ -7,6 +7,18 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Eye, EyeOff, GraduationCap, Loader2, Phone, ShieldCheck } from 'lucide-react';
 
+const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || 'kobby.dev';
+
+function getSubdomain(): string | null {
+  if (typeof window === 'undefined') return null;
+  const host = window.location.hostname;
+  if (host.endsWith(`.${BASE_DOMAIN}`)) {
+    const sub = host.slice(0, -(BASE_DOMAIN.length + 1));
+    return sub && sub !== 'www' ? sub : null;
+  }
+  return null;
+}
+
 const ROLE_REDIRECTS: Record<string, string> = {
   super_admin: '/dashboard/super-admin',
   school_admin: '/dashboard/school-admin',
@@ -52,6 +64,17 @@ export default function LoginPage() {
   const [requires2fa, setRequires2fa] = useState(false);
   const [pendingToken, setPendingToken] = useState('');
   const [totpCode, setTotpCode] = useState('');
+  const [subdomainSchool, setSubdomainSchool] = useState<{ id: string; school_name: string; logo_url: string | null } | null>(null);
+
+  useEffect(() => {
+    const sub = getSubdomain();
+    if (sub) {
+      fetch(`/api/school/by-subdomain?slug=${sub}`)
+        .then(r => r.json())
+        .then(data => { if (data?.id) setSubdomainSchool(data); })
+        .catch(() => null);
+    }
+  }, []);
 
   useEffect(() => {
     const checkDatabaseHealth = async () => {
@@ -110,7 +133,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({ identifier, password, ...(subdomainSchool ? { schoolId: subdomainSchool.id } : {}) }),
       });
 
       const contentType = res.headers.get('content-type') || '';
@@ -222,16 +245,31 @@ export default function LoginPage() {
           >
             <div className="mb-8 flex items-start justify-between gap-4">
               <div>
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#3f7afc] text-white shadow-lg shadow-[#3f7afc]/25">
-                  <GraduationCap className="h-8 w-8" />
-                </div>
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#3f7afc]">FutureLink</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#212529] sm:text-4xl">
-                  Welcome back
-                </h1>
-                <p className="mt-3 max-w-md text-sm leading-6 text-[#646464] sm:text-base">
-                  Sign in to manage classes, attendance, scores, and parent communication from one place.
-                </p>
+                {subdomainSchool ? (
+                  <>
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/25 overflow-hidden">
+                      {subdomainSchool.logo_url
+                        ? <Image src={subdomainSchool.logo_url} alt="logo" width={56} height={56} className="object-cover" />
+                        : <GraduationCap className="h-8 w-8" />}
+                    </div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-600">{subdomainSchool.school_name}</p>
+                    <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#212529] sm:text-4xl">Welcome back</h1>
+                    <p className="mt-3 max-w-md text-sm leading-6 text-[#646464]">Sign in to access {subdomainSchool.school_name}.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#3f7afc] text-white shadow-lg shadow-[#3f7afc]/25">
+                      <GraduationCap className="h-8 w-8" />
+                    </div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#3f7afc]">FutureLink</p>
+                    <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#212529] sm:text-4xl">
+                      Welcome back
+                    </h1>
+                    <p className="mt-3 max-w-md text-sm leading-6 text-[#646464] sm:text-base">
+                      Sign in to manage classes, attendance, scores, and parent communication from one place.
+                    </p>
+                  </>
+                )}
               </div>
 
               <Link
