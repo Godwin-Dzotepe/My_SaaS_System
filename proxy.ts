@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 
+const BASE_DOMAIN = process.env.BASE_DOMAIN || 'kobby.dev';
+
 // Role-based route protection
 // Define which routes require which roles
 const roleBasedRoutes: Record<string, string[]> = {
@@ -44,6 +46,17 @@ function getDashboardRoute(role?: string) {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Detect custom school subdomain and pass as header
+  const host = (request.headers.get('host') || '').split(':')[0];
+  if (host.endsWith(`.${BASE_DOMAIN}`)) {
+    const sub = host.slice(0, -(BASE_DOMAIN.length + 1));
+    if (sub && sub !== 'www') {
+      const res = NextResponse.next();
+      res.headers.set('x-school-subdomain', sub);
+      return res;
+    }
+  }
 
   // Allow static files and Next.js internals
   if (
