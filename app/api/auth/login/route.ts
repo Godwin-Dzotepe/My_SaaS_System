@@ -45,12 +45,12 @@ async function findLoginUser(where: Record<string, unknown>) {
   }
 }
 
-function setCsrfCookie(response: NextResponse): void {
+function setCsrfCookie(response: NextResponse, isHttps: boolean): void {
   const csrfToken = crypto.randomUUID();
   response.cookies.set('csrf_token', csrfToken, {
-    httpOnly: false, // Must be readable by JS for the double-submit pattern
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    httpOnly: false,
+    secure: isHttps,
+    sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60,
     path: '/',
   });
@@ -193,16 +193,17 @@ export async function POST(req: NextRequest) {
       token,
     });
 
-    const isProd = process.env.NODE_ENV === 'production';
+    const isHttps = req.headers.get('x-forwarded-proto') === 'https' ||
+      req.url.startsWith('https://');
     response.cookies.set('token', token, {
       httpOnly: true,
-      secure:   isProd,
-      sameSite: 'strict',
+      secure:   isHttps,
+      sameSite: 'lax',
       maxAge:   7 * 24 * 60 * 60,
       path:     '/',
     });
 
-    setCsrfCookie(response);
+    setCsrfCookie(response, isHttps);
     return response;
 
   } catch (error) {
