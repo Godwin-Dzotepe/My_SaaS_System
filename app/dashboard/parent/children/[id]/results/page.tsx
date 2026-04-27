@@ -136,7 +136,7 @@ async function generateReportPdf(report: ReportResponse, selectedYear: string, s
   doc.text(new Date().toLocaleDateString('en-GB'), ml + 137, y);
   y += 7;
 
-  // Row 4: Next Term | Attendance | Promoted
+  /* -- HIDDEN: Next Term Begins | Attendance | Promoted --
   doc.text('Next Term Begins:', ml, y);
   dline(ml + 36, y + 1, ml + 82);
   doc.text('Attendance:', ml + 85, y);
@@ -144,6 +144,8 @@ async function generateReportPdf(report: ReportResponse, selectedYear: string, s
   doc.text('Promoted:', ml + 138, y);
   dline(ml + 155, y + 1, PW - mr);
   y += 11;
+  -- END HIDDEN */
+  y += 4;
 
   // ── SCORES TABLE ───────────────────────────────────────────────────────
   // col widths sum = 182mm
@@ -222,7 +224,7 @@ async function generateReportPdf(report: ReportResponse, selectedYear: string, s
 
   y += 9;
 
-  // ── CONDUCT ────────────────────────────────────────────────────────────
+  /* -- HIDDEN: Conduct / Character, Attitude, Interest, Class Teacher's Remarks --
   doc.setFont('times', 'normal');
   doc.setFontSize(10);
   doc.setLineWidth(0.3);
@@ -244,8 +246,9 @@ async function generateReportPdf(report: ReportResponse, selectedYear: string, s
   });
 
   y += 8;
+  -- END HIDDEN */
 
-  // ── SIGNATURES ─────────────────────────────────────────────────────────
+  /* -- HIDDEN: Class Teacher's Signature, Head Master's Signature --
   doc.setFont('times', 'normal');
   doc.setFontSize(10);
   doc.text("Class Teacher's Signature:", ml, y);
@@ -254,13 +257,13 @@ async function generateReportPdf(report: ReportResponse, selectedYear: string, s
   dline(ml + 145, y + 1, PW - mr);
 
   y += 13;
+  -- END HIDDEN */
 
-  // ── FEES BOXES ─────────────────────────────────────────────────────────
+  /* -- HIDDEN: School Fees, Maintenance Fees --
   doc.setLineWidth(0.5);
   const fBoxW = 88;
   const fBoxH = 52;
 
-  // School Fees
   doc.rect(ml, y, fBoxW, fBoxH, 'S');
   doc.setFillColor(242, 242, 242);
   doc.rect(ml, y, fBoxW, 7, 'FD');
@@ -283,7 +286,6 @@ async function generateReportPdf(report: ReportResponse, selectedYear: string, s
   doc.setLineWidth(0.4);
   hline(fy2 + 2, ml + 40, ml + fBoxW - 3);
 
-  // Maintenance Fees
   const mBoxX = ml + fBoxW + 6;
   const mBoxW = cw - fBoxW - 6;
   doc.setLineWidth(0.5);
@@ -301,6 +303,9 @@ async function generateReportPdf(report: ReportResponse, selectedYear: string, s
   dline(mBoxX + 27, y + 22, mBoxX + mBoxW - 3);
 
   y += fBoxH + 8;
+  -- END HIDDEN */
+
+  y += 10;
 
   // ── OFFICIAL GRADING ───────────────────────────────────────────────────
   doc.setFont('helvetica', 'bold');
