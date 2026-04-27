@@ -3,13 +3,14 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, FileText, Loader2, Printer, Sparkles } from 'lucide-react';
+import { ChevronLeft, Download, FileText, Loader2, Sparkles } from 'lucide-react';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { PARENT_SIDEBAR_ITEMS } from '@/lib/sidebar-configs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { PrintableReportSheet } from '@/components/printable-report-sheet';
 
 interface ReportScore {
   id: string;
@@ -61,11 +62,46 @@ export default function ChildResultsPage() {
   const [report, setReport] = React.useState<ReportResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [fetchingReport, setFetchingReport] = React.useState(false);
+  const [isDownloading, setIsDownloading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [selectedYear, setSelectedYear] = React.useState('');
   const [selectedTerm, setSelectedTerm] = React.useState('');
-  const handlePrintPdf = () => {
-    window.print();
+  const reportTemplateRef = React.useRef<HTMLDivElement>(null);
+
+  const handleDownloadPdf = async () => {
+    if (!reportTemplateRef.current || !report) return;
+    setIsDownloading(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).jsPDF;
+
+      const canvas = await html2canvas(reportTemplateRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgAspect = canvas.height / canvas.width;
+      const imgHeight = pageWidth * imgAspect;
+
+      if (imgHeight <= pageHeight) {
+        pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, imgHeight);
+      } else {
+        // Scale to fit one page
+        const scaledWidth = pageHeight / imgAspect;
+        const offsetX = (pageWidth - scaledWidth) / 2;
+        pdf.addImage(imgData, 'PNG', offsetX, 0, scaledWidth, pageHeight);
+      }
+
+      const fileName = `${report.child.name.replace(/\s+/g, '_')}_${selectedYear}_${selectedTerm}.pdf`;
+      pdf.save(fileName);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const fetchReport = React.useCallback(async (academicYear?: string, term?: string) => {
@@ -117,27 +153,9 @@ export default function ChildResultsPage() {
 
   return (
     <div className="flex min-h-screen bg-[#eef2f7]">
-      <style>{`
-        @media print {
-          [data-pdf-ignore="true"] { display: none !important; }
-          .print-sidebar { display: none !important; }
-          .print-main { margin-left: 0 !important; padding: 0 !important; background: white !important; }
-          body { background: white !important; }
-          @page { margin: 1.5cm; size: A4 portrait; }
-          .print-report-card { display: block !important; }
-          .no-print-report-card { display: none !important; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        }
-        @media screen {
-          .print-report-card { display: none !important; }
-        }
-      `}</style>
+      <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName="Parent" />
 
-      <div className="print-sidebar">
-        <Sidebar items={PARENT_SIDEBAR_ITEMS} userRole="parent" userName="Parent" />
-      </div>
-
-      <div className="print-main flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
+      <div className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
         {loading ? (
           <div className="flex justify-center py-24">
             <Loader2 className="w-8 h-8 animate-spin text-[#3f7afc]" />
@@ -165,13 +183,16 @@ export default function ChildResultsPage() {
                   </p>
                 </div>
                 <Button
-                  data-pdf-ignore="true"
-                  onClick={handlePrintPdf}
-                  disabled={!report}
+                  onClick={handleDownloadPdf}
+                  disabled={!report || isDownloading}
                   className="gap-2 bg-white text-[#1f61c3] hover:bg-blue-50"
                 >
-                  <Printer className="w-4 h-4" />
-                  Print / Save PDF
+                  {isDownloading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  {isDownloading ? 'Downloading...' : 'Download'}
                 </Button>
               </div>
             </section>
@@ -318,96 +339,22 @@ export default function ChildResultsPage() {
           </div>
         )}
 
-        {/* ── PRINT-ONLY REPORT CARD ─────────────────────────────────── */}
-        {report && (
-          <div className="print-report-card" style={{ fontFamily: 'Georgia, serif', color: '#111', background: 'white' }}>
-            {/* Header */}
-            <div style={{ textAlign: 'center', borderBottom: '3px double #1f61c3', paddingBottom: '12px', marginBottom: '16px' }}>
-              <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#0f2f66', letterSpacing: '0.04em' }}>
-                {report.child.school?.school_name || 'School'}
-              </div>
-              <div style={{ fontSize: '13px', color: '#555', marginTop: '2px' }}>Student Academic Report Card</div>
-              <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>
-                {selectedYear} &mdash; {selectedTerm}
-              </div>
-            </div>
-
-            {/* Student info row */}
-            <table style={{ width: '100%', marginBottom: '16px', fontSize: '13px', borderCollapse: 'collapse' }}>
-              <tbody>
-                <tr>
-                  <td style={{ width: '50%', paddingBottom: '6px' }}>
-                    <span style={{ color: '#888', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Student Name</span><br />
-                    <strong>{report.child.name}</strong>
-                  </td>
-                  <td style={{ width: '50%', paddingBottom: '6px' }}>
-                    <span style={{ color: '#888', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Student Number</span><br />
-                    <strong>{report.child.student_number || 'N/A'}</strong>
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ paddingBottom: '6px' }}>
-                    <span style={{ color: '#888', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Class</span><br />
-                    <strong>{report.child.class?.class_name || 'N/A'}</strong>
-                  </td>
-                  <td style={{ paddingBottom: '6px' }}>
-                    <span style={{ color: '#888', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Average Score</span><br />
-                    <strong style={{ color: '#1f61c3' }}>{report.summary.averageScore ?? 'N/A'}</strong>
-                    {report.summary.position && <span style={{ color: '#888', fontSize: '12px' }}> &nbsp;|&nbsp; Position: {report.summary.position}</span>}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            {/* Scores table */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-              <thead>
-                <tr style={{ background: '#0f2f66', color: 'white' }}>
-                  {['Subject', 'Class Score', 'Exam Score', 'Total', 'Grade', 'Remark', 'Behavior', 'Teacher Advice'].map(h => (
-                    <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, letterSpacing: '0.04em', fontSize: '11px' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {report.scores.map((score, idx) => (
-                  <tr key={score.id} style={{ background: idx % 2 === 0 ? '#f7f9fc' : 'white', borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '7px 10px', fontWeight: 600 }}>{score.subject.subject_name}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'center' }}>{score.classScore ?? 'N/A'}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'center' }}>{score.examScore ?? 'N/A'}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'center', fontWeight: 700 }}>{score.totalScore ?? 'N/A'}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'center' }}>
-                      <span style={{
-                        display: 'inline-block', padding: '2px 8px', borderRadius: '12px', fontWeight: 700, fontSize: '11px',
-                        background: score.grade?.startsWith('A') ? '#d1fae5' : score.grade?.startsWith('B') ? '#dbeafe' : score.grade?.startsWith('C') ? '#fef3c7' : '#fee2e2',
-                        color: score.grade?.startsWith('A') ? '#065f46' : score.grade?.startsWith('B') ? '#1e40af' : score.grade?.startsWith('C') ? '#92400e' : '#991b1b',
-                      }}>{score.grade ?? 'N/A'}</span>
-                    </td>
-                    <td style={{ padding: '7px 10px', color: '#555' }}>{score.remark ?? 'N/A'}</td>
-                    <td style={{ padding: '7px 10px', color: '#555' }}>{score.behavior ?? 'N/A'}</td>
-                    <td style={{ padding: '7px 10px', color: '#555', fontSize: '11px' }}>{score.teacherAdvice ?? 'N/A'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Footer */}
-            <div style={{ marginTop: '32px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#aaa' }}>
-              <span>Generated: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
-              <span>{report.child.school?.school_name}</span>
-            </div>
-
-            {/* Signature row */}
-            <div style={{ marginTop: '40px', display: 'flex', gap: '60px', fontSize: '12px' }}>
-              {["Class Teacher's Signature", "Headteacher's Signature", "Parent's Signature"].map(label => (
-                <div key={label} style={{ flex: 1 }}>
-                  <div style={{ borderBottom: '1px solid #999', marginBottom: '6px', height: '36px' }} />
-                  <div style={{ color: '#777', fontSize: '11px' }}>{label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Hidden report template used for PDF generation */}
+      {report && (
+        <div
+          ref={reportTemplateRef}
+          style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1, background: 'white' }}
+          aria-hidden="true"
+        >
+          <PrintableReportSheet
+            report={report}
+            selectedYear={selectedYear}
+            selectedTerm={selectedTerm}
+          />
+        </div>
+      )}
     </div>
   );
 }
